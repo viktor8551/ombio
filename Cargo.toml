@@ -2,5 +2,10 @@
 name = "walzer"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.87"
 
 [dependencies]
+bytemuck = { version = "1.25", features = ["derive"] }
+pollster = "1.0"
+wgpu = "30.0"
+winit = "0.30"
