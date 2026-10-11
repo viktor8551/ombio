@@ -6,12 +6,29 @@ use winit::{
 
 use crate::{Error, runtime};
 
-/// Prepares an engine with a WALZER window and an 800 by 600 logical pixel content area.
+/// Configures an engine, defaulting to WALZER and an 800 by 600 logical pixel content area.
 pub struct EngineBuilder {
     window_attributes: WindowAttributes,
 }
 
 impl EngineBuilder {
+    /// Sets the window title. Defaults to "WALZER" when omitted.
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.window_attributes = self.window_attributes.with_title(title);
+        self
+    }
+
+    /// Sets the initial inner content width and height in logical pixels.
+    ///
+    /// Excludes the title bar and borders; Windows DPI scaling is applied at creation.
+    /// Defaults to 800 by 600 when omitted.
+    pub fn window_size(mut self, width: u32, height: u32) -> Self {
+        self.window_attributes = self
+            .window_attributes
+            .with_inner_size(LogicalSize::new(width, height));
+        self
+    }
+
     /// Prepares the event loop without creating or showing a window.
     ///
     /// Call on the main thread. Only one event loop may be built per process.
