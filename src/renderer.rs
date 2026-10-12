@@ -1,8 +1,12 @@
 use std::sync::{Arc, mpsc};
 
+use wgpu::util::DeviceExt;
 use winit::{event_loop::EventLoopProxy, window::Window};
 
 use crate::{Error, Frame, Game};
+
+// Two position components and three linear color components per vertex.
+const RECTANGLE_VERTEX_SIZE: usize = 5 * size_of::<f32>();
 
 pub(crate) struct Renderer {
     // The surface retains its own Arc to the window and is dropped first.
@@ -10,6 +14,7 @@ pub(crate) struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
+    rectangle_pipeline: wgpu::RenderPipeline,
     errors: mpsc::Receiver<Error>,
 }
 
@@ -57,11 +62,45 @@ impl Renderer {
             .into_iter()
             .find(wgpu::TextureFormat::is_srgb)
             .ok_or_else(|| Error::GpuInitialization("surface has no sRGB format".into()))?;
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("WALZER solid color"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/solid.wgsl").into()),
+        });
+        let rectangle_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("WALZER opaque rectangles"),
+            layout: None,
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vertex"),
+                compilation_options: Default::default(),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: RECTANGLE_VERTEX_SIZE as u64,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x3],
+                }],
+            },
+            primitive: Default::default(),
+            depth_stencil: None,
+            multisample: Default::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fragment"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
         let renderer = Self {
             surface,
             device,
             queue,
             config,
+            rectangle_pipeline,
             errors,
         };
         renderer
@@ -114,6 +153,45 @@ impl Renderer {
         };
         let mut frame = Frame::new();
         game.render(&mut frame);
+        let mut vertices = Vec::new();
+        let scale = window.scale_factor();
+        for rectangle in &frame.rectangles {
+            // Clip in physical pixels before converting to GPU clip coordinates.
+            let left = (f64::from(rectangle.x) * scale).clamp(0.0, f64::from(size.width));
+            let top = (f64::from(rectangle.y) * scale).clamp(0.0, f64::from(size.height));
+            let right = ((f64::from(rectangle.x) + f64::from(rectangle.width)) * scale)
+                .clamp(0.0, f64::from(size.width));
+            let bottom = ((f64::from(rectangle.y) + f64::from(rectangle.height)) * scale)
+                .clamp(0.0, f64::from(size.height));
+            if left >= right || top >= bottom {
+                continue;
+            }
+            let left = (2.0 * left / f64::from(size.width) - 1.0) as f32;
+            let right = (2.0 * right / f64::from(size.width) - 1.0) as f32;
+            let top = (1.0 - 2.0 * top / f64::from(size.height)) as f32;
+            let bottom = (1.0 - 2.0 * bottom / f64::from(size.height)) as f32;
+            let color = rectangle.color.linear();
+            for (x, y) in [
+                (left, top),
+                (left, bottom),
+                (right, top),
+                (right, top),
+                (left, bottom),
+                (right, bottom),
+            ] {
+                for value in [x, y, color.r as f32, color.g as f32, color.b as f32] {
+                    vertices.extend_from_slice(&value.to_ne_bytes());
+                }
+            }
+        }
+        let vertex_buffer = (!vertices.is_empty()).then(|| {
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("WALZER rectangle vertices"),
+                    contents: &vertices,
+                    usage: wgpu::BufferUsages::VERTEX,
+                })
+        });
         let view = texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -121,8 +199,8 @@ impl Renderer {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         {
-            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("WALZER background"),
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("WALZER frame"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     depth_slice: None,
@@ -134,6 +212,11 @@ impl Renderer {
                 })],
                 ..Default::default()
             });
+            if let Some(buffer) = &vertex_buffer {
+                pass.set_pipeline(&self.rectangle_pipeline);
+                pass.set_vertex_buffer(0, buffer.slice(..));
+                pass.draw(0..(vertices.len() / RECTANGLE_VERTEX_SIZE) as u32, 0..1);
+            }
         }
         self.queue.submit([encoder.finish()]);
         self.check_error()?;
