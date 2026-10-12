@@ -93,7 +93,9 @@ impl<G: Game> ApplicationHandler for Application<G> {
                     self.fail(event_loop, error);
                 }
             }
-            WindowEvent::Resized(_) => {
+            WindowEvent::Resized(_)
+            | WindowEvent::ScaleFactorChanged { .. }
+            | WindowEvent::Occluded(false) => {
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }

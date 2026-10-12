@@ -14,6 +14,7 @@ pub(crate) struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
+    surface_configured: bool,
     rectangle_pipeline: wgpu::RenderPipeline,
     errors: mpsc::Receiver<Error>,
 }
@@ -100,12 +101,10 @@ impl Renderer {
             device,
             queue,
             config,
+            surface_configured: false,
             rectangle_pipeline,
             errors,
         };
-        renderer
-            .surface
-            .configure(&renderer.device, &renderer.config);
         renderer.check_error()?;
         Ok(renderer)
     }
@@ -120,14 +119,18 @@ impl Renderer {
     pub(crate) fn render(&mut self, window: &Window, game: &mut impl Game) -> Result<(), Error> {
         self.check_error()?;
         let size = window.inner_size();
-        if size.width == 0 || size.height == 0 {
+        if window.is_minimized() == Some(true) || size.width == 0 || size.height == 0 {
             return Ok(());
         }
-        if (self.config.width, self.config.height) != (size.width, size.height) {
+        // Configure only when a usable drawable area is available, including the first frame.
+        if !self.surface_configured
+            || (self.config.width, self.config.height) != (size.width, size.height)
+        {
             self.config.width = size.width;
             self.config.height = size.height;
             self.surface.configure(&self.device, &self.config);
             self.check_error()?;
+            self.surface_configured = true;
         }
         let (texture, suboptimal) = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture) => (texture, false),
