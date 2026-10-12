@@ -1,19 +1,25 @@
+use std::sync::Arc;
+
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
-    event_loop::{ActiveEventLoop, EventLoop},
+    event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::Error;
+use crate::{Error, Game, renderer::Renderer};
 
 pub(crate) fn run(
     event_loop: EventLoop<()>,
     window_attributes: WindowAttributes,
+    game: impl Game,
 ) -> Result<(), Error> {
     let mut application = Application {
+        proxy: event_loop.create_proxy(),
         window_attributes,
         window: None,
+        renderer: None,
+        game,
         error: None,
     };
     let result = event_loop.run_app(&mut application);
@@ -23,23 +29,48 @@ pub(crate) fn run(
     }
 }
 
-struct Application {
+struct Application<G> {
+    proxy: EventLoopProxy<()>,
     window_attributes: WindowAttributes,
-    window: Option<Window>,
+    window: Option<Arc<Window>>,
+    renderer: Option<Renderer>,
+    game: G,
     error: Option<Error>,
 }
 
-impl ApplicationHandler for Application {
+impl<G: Game> Application<G> {
+    fn fail(&mut self, event_loop: &ActiveEventLoop, error: Error) {
+        self.error = Some(error);
+        event_loop.exit();
+    }
+}
+
+impl<G: Game> ApplicationHandler for Application<G> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_some() || self.error.is_some() {
             return;
         }
         match event_loop.create_window(self.window_attributes.clone()) {
-            Ok(window) => self.window = Some(window),
-            Err(error) => {
-                self.error = Some(Error::WindowCreation(error));
-                event_loop.exit();
+            Ok(window) => {
+                let window = Arc::new(window);
+                match pollster::block_on(Renderer::new(window.clone(), self.proxy.clone())) {
+                    Ok(renderer) => {
+                        self.renderer = Some(renderer);
+                        window.request_redraw();
+                        self.window = Some(window);
+                    }
+                    Err(error) => self.fail(event_loop, error),
+                }
             }
+            Err(error) => self.fail(event_loop, Error::WindowCreation(error)),
+        }
+    }
+
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, _event: ()) {
+        if let Some(renderer) = &self.renderer
+            && let Err(error) = renderer.check_error()
+        {
+            self.fail(event_loop, error);
         }
     }
 
@@ -49,14 +80,36 @@ impl ApplicationHandler for Application {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if self.window.as_ref().map(Window::id) == Some(window_id)
-            && matches!(event, WindowEvent::CloseRequested)
+        if self.error.is_some() || self.window.as_ref().map(|window| window.id()) != Some(window_id)
         {
-            event_loop.exit();
+            return;
+        }
+        match event {
+            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::RedrawRequested => {
+                if let (Some(window), Some(renderer)) = (&self.window, &mut self.renderer)
+                    && let Err(error) = renderer.render(window, &mut self.game)
+                {
+                    self.fail(event_loop, error);
+                }
+            }
+            WindowEvent::Resized(_) => {
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            _ => {}
         }
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        if self.error.is_none()
+            && let Some(renderer) = &self.renderer
+            && let Err(error) = renderer.check_error()
+        {
+            self.error = Some(error);
+        }
+        self.renderer = None;
         self.window = None;
     }
 }

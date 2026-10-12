@@ -4,7 +4,7 @@ use winit::{
     window::{Window, WindowAttributes},
 };
 
-use crate::{Error, runtime};
+use crate::{Error, Game, runtime};
 
 /// Configures an engine, defaulting to WALZER and an 800 by 600 logical pixel content area.
 pub struct EngineBuilder {
@@ -57,9 +57,10 @@ impl Engine {
         }
     }
 
-    /// Opens one window and processes events until a normal Windows close action.
+    /// Takes ownership of the game, opens one window and renders on redraw requests.
+    /// The same mutable game is used for every redraw, with no update loop.
     /// Window and event-loop resources are released before returning.
-    pub fn run(self) -> Result<(), Error> {
-        runtime::run(self.event_loop, self.window_attributes)
+    pub fn run(self, game: impl Game) -> Result<(), Error> {
+        runtime::run(self.event_loop, self.window_attributes, game)
     }
 }

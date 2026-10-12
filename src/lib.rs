@@ -1,10 +1,13 @@
-//! Prepare and run a Windows window through the engine's public API.
-
 #![cfg(windows)]
 
 mod engine;
 mod error;
+mod frame;
+mod game;
+mod renderer;
 mod runtime;
 
 pub use engine::{Engine, EngineBuilder};
 pub use error::Error;
+pub use frame::{Color, Frame};
+pub use game::Game;
