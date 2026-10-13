@@ -21,11 +21,11 @@ impl Game for DrawableGame {
         frame.clear(Color::rgb(32, 40, 56));
         frame.draw(&self.panel);
 
-        let mut marker = Rectangle::new(64.0, 88.0, 64.0, 32.0, Color::rgb(240, 176, 48));
+        let mut marker = Rectangle::new(64.0, 88.0, 64.0, 32.0, Color::rgba(240, 176, 48, 128));
         frame.draw(&marker);
 
         marker.x += 128.0;
-        marker.color = Color::rgb(80, 216, 128);
+        marker.color = Color::rgba(80, 216, 128, 128);
         let drawable: &dyn Drawable = &marker;
         frame.draw(drawable);
     }

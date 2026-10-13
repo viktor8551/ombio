@@ -5,8 +5,8 @@ use winit::{event_loop::EventLoopProxy, window::Window};
 
 use crate::{Error, Frame, Game, Image, frame::DrawCommand};
 
-// Two position components and three linear color components per vertex.
-const RECTANGLE_VERTEX_SIZE: usize = 5 * size_of::<f32>();
+// Two position components and four linear color components per vertex.
+const VERTEX_SIZE: usize = 6 * size_of::<f32>();
 
 pub(crate) struct GpuImage {
     pub(crate) device: wgpu::Device,
@@ -76,16 +76,16 @@ impl Renderer {
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/solid.wgsl").into()),
         });
         let rectangle_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("WALZER opaque rectangles"),
+            label: Some("WALZER rectangles"),
             layout: None,
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vertex"),
                 compilation_options: Default::default(),
                 buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: RECTANGLE_VERTEX_SIZE as u64,
+                    array_stride: VERTEX_SIZE as u64,
                     step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x3],
+                    attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x4],
                 }],
             },
             primitive: Default::default(),
@@ -97,7 +97,7 @@ impl Renderer {
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
-                    blend: None,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -143,7 +143,7 @@ impl Renderer {
                 entry_point: Some("vertex"),
                 compilation_options: Default::default(),
                 buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: RECTANGLE_VERTEX_SIZE as u64,
+                    array_stride: VERTEX_SIZE as u64,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
                 }],
@@ -334,7 +334,7 @@ impl Renderer {
                 DrawCommand::Sprite { image, .. } => Some(self.image_bind_group(image)?),
                 DrawCommand::Rectangle(_) => None,
             };
-            let start = (vertices.len() / RECTANGLE_VERTEX_SIZE) as u32;
+            let start = (vertices.len() / VERTEX_SIZE) as u32;
             for (x, y, u, v) in [
                 (left, top, u_left, v_top),
                 (left, bottom, u_left, v_bottom),
@@ -346,11 +346,23 @@ impl Renderer {
                 let attributes = match command {
                     DrawCommand::Rectangle(rectangle) => {
                         let color = rectangle.color.linear();
-                        [color.r as f32, color.g as f32, color.b as f32]
+                        [
+                            color.r as f32,
+                            color.g as f32,
+                            color.b as f32,
+                            color.a as f32,
+                        ]
                     }
-                    DrawCommand::Sprite { .. } => [u, v, 0.0],
+                    DrawCommand::Sprite { .. } => [u, v, 0.0, 0.0],
                 };
-                for value in [x, y, attributes[0], attributes[1], attributes[2]] {
+                for value in [
+                    x,
+                    y,
+                    attributes[0],
+                    attributes[1],
+                    attributes[2],
+                    attributes[3],
+                ] {
                     vertices.extend_from_slice(&value.to_ne_bytes());
                 }
             }

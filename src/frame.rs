@@ -1,16 +1,26 @@
 use crate::Image;
 
-/// An opaque color with red, green and blue sRGB components from 0 to 255.
+/// A color with sRGB red, green and blue components and linear alpha from 0 to 255.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Color {
     red: u8,
     green: u8,
     blue: u8,
+    alpha: u8,
 }
 
 impl Color {
     pub const fn rgb(red: u8, green: u8, blue: u8) -> Self {
-        Self { red, green, blue }
+        Self::rgba(red, green, blue, 255)
+    }
+
+    pub const fn rgba(red: u8, green: u8, blue: u8, alpha: u8) -> Self {
+        Self {
+            red,
+            green,
+            blue,
+            alpha,
+        }
     }
 
     pub(crate) fn linear(self) -> wgpu::Color {
@@ -26,7 +36,7 @@ impl Color {
             r: component(self.red),
             g: component(self.green),
             b: component(self.blue),
-            a: 1.0,
+            a: f64::from(self.alpha) / 255.0,
         }
     }
 }
@@ -47,7 +57,7 @@ pub trait Drawable {
     fn draw(&self, frame: &mut Frame);
 }
 
-/// An opaque filled rectangle in logical pixels from the top-left.
+/// A filled rectangle in logical pixels from the top-left.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rectangle {
     pub x: f32,
@@ -91,7 +101,7 @@ impl Frame {
         }
     }
 
-    /// Fills the picture with an opaque color, discarding earlier drawing in this frame.
+    /// Fills the picture with a color, discarding earlier drawing in this frame.
     pub fn clear(&mut self, color: Color) {
         self.background = color;
         self.commands.clear();
