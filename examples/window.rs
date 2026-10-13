@@ -1,18 +1,14 @@
-use walzer::{Color, Engine, Error, Frame, Game};
+use walzer::{Color, Engine, Error, Frame, Game, Rectangle};
 
 struct RectangleGame {
     background: Color,
-    x: f32,
-    y: f32,
-    width: f32,
-    height: f32,
-    color: Color,
+    rectangle: Rectangle,
 }
 
 impl Game for RectangleGame {
     fn render(&mut self, frame: &mut Frame) {
         frame.clear(self.background);
-        frame.fill_rect(self.x, self.y, self.width, self.height, self.color);
+        frame.draw(&self.rectangle);
     }
 }
 
@@ -23,10 +19,6 @@ fn main() -> Result<(), Error> {
         .build()?
         .run(RectangleGame {
             background: Color::rgb(48, 144, 72),
-            x: 50.0,
-            y: 50.0,
-            width: 200.0,
-            height: 100.0,
-            color: Color::rgb(240, 176, 48),
+            rectangle: Rectangle::new(50.0, 50.0, 200.0, 100.0, Color::rgb(240, 176, 48)),
         })
 }

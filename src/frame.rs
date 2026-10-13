@@ -42,12 +42,52 @@ pub(crate) enum DrawCommand {
     Sprite { sprite: Sprite, x: f32, y: f32 },
 }
 
-pub(crate) struct Rectangle {
-    pub(crate) x: f32,
-    pub(crate) y: f32,
-    pub(crate) width: f32,
-    pub(crate) height: f32,
-    pub(crate) color: Color,
+/// An object that describes a picture within a frame.
+///
+/// Compose other drawables through [`Frame::draw`], as in the `drawables` example.
+pub trait Drawable {
+    /// Records drawing commands. Implementations must not submit themselves recursively.
+    fn draw(&self, frame: &mut Frame);
+}
+
+/// An editable, opaque filled rectangle drawn through [`Frame::draw`].
+///
+/// Coordinates use logical pixels from the top-left, with x rightward and y downward.
+/// Drawing applies DPI scaling and clips at the content boundary.
+/// Non-finite geometry and non-positive dimensions draw nothing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Rectangle {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub color: Color,
+}
+
+impl Rectangle {
+    pub const fn new(x: f32, y: f32, width: f32, height: f32, color: Color) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+            color,
+        }
+    }
+}
+
+impl Drawable for Rectangle {
+    fn draw(&self, frame: &mut Frame) {
+        if ![self.x, self.y, self.width, self.height]
+            .into_iter()
+            .all(f32::is_finite)
+            || self.width <= 0.0
+            || self.height <= 0.0
+        {
+            return;
+        }
+        frame.commands.push(DrawCommand::Rectangle(*self));
+    }
 }
 
 impl Frame {
@@ -64,29 +104,18 @@ impl Frame {
         self.commands.clear();
     }
 
-    /// Draws an opaque filled rectangle, covering earlier drawing where it overlaps.
+    /// Records drawing commands in submission order for later presentation.
     ///
-    /// Position and dimensions are `f32` logical pixels from the content area's
-    /// top-left: x increases rightward and y downward. Windows DPI scaling is
-    /// applied by the renderer, and drawing clips at the content boundary.
-    /// Color uses opaque 8-bit sRGB components, just like [`Frame::clear`].
-    /// Non-finite arguments and non-positive dimensions draw nothing.
-    pub fn fill_rect(&mut self, x: f32, y: f32, width: f32, height: f32, color: Color) {
-        if ![x, y, width, height].into_iter().all(f32::is_finite) || width <= 0.0 || height <= 0.0 {
-            return;
-        }
-        self.commands.push(DrawCommand::Rectangle(Rectangle {
-            x,
-            y,
-            width,
-            height,
-            color,
-        }));
+    /// Accepts concrete drawables and borrowed trait objects (`&dyn Drawable`).
+    /// Rectangles capture their current geometry and color; later edits or dropping
+    /// the object do not affect earlier submissions.
+    pub fn draw(&mut self, drawable: &(impl Drawable + ?Sized)) {
+        drawable.draw(self);
     }
 
     /// Draws a sprite at its natural dimensions in logical pixels.
     ///
-    /// Position follows [`Frame::fill_rect`]: top-left anchor, x rightward, y
+    /// Position follows [`Rectangle`]: top-left anchor, x rightward, y
     /// downward, with DPI scaling and clipping at the content boundary.
     /// Transparent pixels reveal earlier drawing; partial transparency blends
     /// with it. Non-finite positions draw nothing.
