@@ -1,7 +1,9 @@
-use walzer::{Color, Engine, Frame, Game, Rectangle, Sprite};
+use walzer::{Color, Engine, Frame, Game, Image, Rectangle, Sprite};
 
 struct SpriteGame {
-    sprite: Sprite,
+    first: Sprite,
+    second: Sprite,
+    clipped: Sprite,
 }
 
 impl Game for SpriteGame {
@@ -14,7 +16,7 @@ impl Game for SpriteGame {
             128.0,
             Color::rgb(192, 64, 96),
         ));
-        frame.draw_sprite(&self.sprite, 56.0, 56.0);
+        frame.draw(&self.first);
         frame.draw(&Rectangle::new(
             120.0,
             88.0,
@@ -22,12 +24,13 @@ impl Game for SpriteGame {
             32.0,
             Color::rgb(80, 216, 128),
         ));
-        frame.draw_sprite(&self.sprite, 168.0, 56.0);
+        frame.draw(&self.second);
+        frame.draw(&self.clipped);
     }
 }
 
 fn main() -> Result<(), walzer::Error> {
-    let sprite = Sprite::load(concat!(
+    let image = Image::load(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/examples/assets/sprite.png"
     ))?;
@@ -35,5 +38,9 @@ fn main() -> Result<(), walzer::Error> {
         .title("WALZER PNG sprites")
         .window_size(320, 208)
         .build()?
-        .run(SpriteGame { sprite })
+        .run(SpriteGame {
+            first: Sprite::new(image.clone(), 56.0, 56.0),
+            second: Sprite::new(image.clone(), 168.0, 56.0),
+            clipped: Sprite::new(image, -24.0, 176.0),
+        })
 }

@@ -1,4 +1,4 @@
-use crate::Sprite;
+use crate::Image;
 
 /// An opaque color with red, green and blue sRGB components from 0 to 255.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,22 +39,15 @@ pub struct Frame {
 
 pub(crate) enum DrawCommand {
     Rectangle(Rectangle),
-    Sprite { sprite: Sprite, x: f32, y: f32 },
+    Sprite { image: Image, x: f32, y: f32 },
 }
 
-/// An object that describes a picture within a frame.
-///
-/// Compose other drawables through [`Frame::draw`], as in the `drawables` example.
+/// Something that can be drawn through [`Frame::draw`].
 pub trait Drawable {
-    /// Records drawing commands. Implementations must not submit themselves recursively.
     fn draw(&self, frame: &mut Frame);
 }
 
-/// An editable, opaque filled rectangle drawn through [`Frame::draw`].
-///
-/// Coordinates use logical pixels from the top-left, with x rightward and y downward.
-/// Drawing applies DPI scaling and clips at the content boundary.
-/// Non-finite geometry and non-positive dimensions draw nothing.
+/// An opaque filled rectangle in logical pixels from the top-left.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rectangle {
     pub x: f32,
@@ -104,29 +97,8 @@ impl Frame {
         self.commands.clear();
     }
 
-    /// Records drawing commands in submission order for later presentation.
-    ///
-    /// Accepts concrete drawables and borrowed trait objects (`&dyn Drawable`).
-    /// Rectangles capture their current geometry and color; later edits or dropping
-    /// the object do not affect earlier submissions.
+    /// Draws an object after earlier submissions.
     pub fn draw(&mut self, drawable: &(impl Drawable + ?Sized)) {
         drawable.draw(self);
-    }
-
-    /// Draws a sprite at its natural dimensions in logical pixels.
-    ///
-    /// Position follows [`Rectangle`]: top-left anchor, x rightward, y
-    /// downward, with DPI scaling and clipping at the content boundary.
-    /// Transparent pixels reveal earlier drawing; partial transparency blends
-    /// with it. Non-finite positions draw nothing.
-    pub fn draw_sprite(&mut self, sprite: &Sprite, x: f32, y: f32) {
-        if !x.is_finite() || !y.is_finite() {
-            return;
-        }
-        self.commands.push(DrawCommand::Sprite {
-            sprite: sprite.clone(),
-            x,
-            y,
-        });
     }
 }

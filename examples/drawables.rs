@@ -1,8 +1,8 @@
-use walzer::{Color, Drawable, Engine, Error, Frame, Game, Rectangle};
+use walzer::{Color, Drawable, Engine, Error, Frame, Game, Image, Rectangle, Sprite};
 
 struct Panel {
     background: Rectangle,
-    foreground: Rectangle,
+    foreground: Sprite,
 }
 
 impl Drawable for Panel {
@@ -32,6 +32,10 @@ impl Game for DrawableGame {
 }
 
 fn main() -> Result<(), Error> {
+    let image = Image::load(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/examples/assets/sprite.png"
+    ))?;
     Engine::builder()
         .title("WALZER composed drawables")
         .window_size(320, 208)
@@ -39,7 +43,7 @@ fn main() -> Result<(), Error> {
         .run(DrawableGame {
             panel: Panel {
                 background: Rectangle::new(40.0, 40.0, 240.0, 128.0, Color::rgb(192, 64, 96)),
-                foreground: Rectangle::new(56.0, 56.0, 208.0, 96.0, Color::rgb(48, 72, 96)),
+                foreground: Sprite::new(image, 56.0, 56.0),
             },
         })
 }

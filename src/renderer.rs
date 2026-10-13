@@ -3,12 +3,12 @@ use std::sync::{Arc, mpsc};
 use wgpu::util::DeviceExt;
 use winit::{event_loop::EventLoopProxy, window::Window};
 
-use crate::{Error, Frame, Game, Sprite, frame::DrawCommand};
+use crate::{Error, Frame, Game, Image, frame::DrawCommand};
 
 // Two position components and three linear color components per vertex.
 const RECTANGLE_VERTEX_SIZE: usize = 5 * size_of::<f32>();
 
-pub(crate) struct GpuSprite {
+pub(crate) struct GpuImage {
     pub(crate) device: wgpu::Device,
     pub(crate) bind_group: wgpu::BindGroup,
 }
@@ -191,8 +191,8 @@ impl Renderer {
         }
     }
 
-    fn sprite_bind_group(&self, sprite: &Sprite) -> Result<wgpu::BindGroup, Error> {
-        let data = &sprite.data;
+    fn image_bind_group(&self, image: &Image) -> Result<wgpu::BindGroup, Error> {
+        let data = &image.data;
         let mut cached = data
             .gpu
             .lock()
@@ -250,7 +250,7 @@ impl Renderer {
             ],
         });
         self.check_error()?;
-        *cached = Some(GpuSprite {
+        *cached = Some(GpuImage {
             device: self.device.clone(),
             bind_group: bind_group.clone(),
         });
@@ -305,8 +305,8 @@ impl Renderer {
                 DrawCommand::Rectangle(rectangle) => {
                     (rectangle.x, rectangle.y, rectangle.width, rectangle.height)
                 }
-                DrawCommand::Sprite { sprite, x, y } => {
-                    (*x, *y, sprite.data.width as f32, sprite.data.height as f32)
+                DrawCommand::Sprite { image, x, y } => {
+                    (*x, *y, image.data.width as f32, image.data.height as f32)
                 }
             };
             // Clip in physical pixels before converting to GPU clip coordinates.
@@ -331,7 +331,7 @@ impl Renderer {
             let top = (1.0 - 2.0 * top / f64::from(size.height)) as f32;
             let bottom = (1.0 - 2.0 * bottom / f64::from(size.height)) as f32;
             let bind_group = match command {
-                DrawCommand::Sprite { sprite, .. } => Some(self.sprite_bind_group(sprite)?),
+                DrawCommand::Sprite { image, .. } => Some(self.image_bind_group(image)?),
                 DrawCommand::Rectangle(_) => None,
             };
             let start = (vertices.len() / RECTANGLE_VERTEX_SIZE) as u32;

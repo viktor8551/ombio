@@ -1,43 +1,28 @@
-use std::{
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use crate::{Drawable, Frame, Image, frame::DrawCommand};
 
-use crate::{Error, renderer::GpuSprite};
-
-/// A PNG image that can be retained and drawn across frames.
-/// Clones share the decoded image and its lazily uploaded GPU resources.
+/// An [`Image`] placed at x and y, drawn through [`Frame::draw`].
 #[derive(Clone)]
 pub struct Sprite {
-    pub(crate) data: Arc<SpriteData>,
-}
-
-pub(crate) struct SpriteData {
-    pub(crate) width: u32,
-    pub(crate) height: u32,
-    pub(crate) pixels: Vec<u8>,
-    pub(crate) gpu: Mutex<Option<GpuSprite>>,
+    pub image: Image,
+    pub x: f32,
+    pub y: f32,
 }
 
 impl Sprite {
-    /// Synchronously loads a PNG without requiring an engine, window, or GPU.
-    pub fn load(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let image = image::ImageReader::with_format(
-            std::io::BufReader::new(
-                std::fs::File::open(path).map_err(|error| Error::SpriteLoading(error.into()))?,
-            ),
-            image::ImageFormat::Png,
-        )
-        .decode()
-        .map_err(Error::SpriteLoading)?
-        .into_rgba8();
-        Ok(Self {
-            data: Arc::new(SpriteData {
-                width: image.width(),
-                height: image.height(),
-                pixels: image.into_raw(),
-                gpu: Mutex::new(None),
-            }),
-        })
+    pub fn new(image: Image, x: f32, y: f32) -> Self {
+        Self { image, x, y }
+    }
+}
+
+impl Drawable for Sprite {
+    fn draw(&self, frame: &mut Frame) {
+        if !self.x.is_finite() || !self.y.is_finite() {
+            return;
+        }
+        frame.commands.push(DrawCommand::Sprite {
+            image: self.image.clone(),
+            x: self.x,
+            y: self.y,
+        });
     }
 }

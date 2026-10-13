@@ -1,0 +1,7 @@
+# Drawable and shared Images
+
+Applications submit rectangles, positioned sprites, and custom compositions through `Frame::draw(&drawable)`: separating reusable `Image` handles from editable `Sprite { image, x, y }` descriptions lets multiple sprites share a picture while retaining independent placements, and the public `Drawable` trait lets applications compose existing primitives through the same interface.
+
+This explicitly supersedes ADR 0003's loading API and Sprite-as-resource model (`Image::load(path)` replaces `Sprite::load(path)` and `Frame::draw()` replaces `Frame::draw_sprite()` without compatibility wrappers), while retaining synchronous PNG loading independent of the engine, the existing loading-error mechanism, lazy GPU upload, shared decoded pixels and GPU resources across image clones, independent loads without a path cache, and resources releasable after the final owning handle is dropped.
+
+Primitive submissions capture current values and image handles so later edits, image replacement, or dropping descriptions leave prior drawing intact; recorded frames retain resources until cleared or dropped, compositions preserve submission order, and natural dimensions, transparency, logical coordinates, top-left anchoring, DPI scaling, clipping, and non-finite-position rejection remain, as do ADR 0001's lifecycle and ADR 0002's Game callback and engine-managed GPU ownership and presentation.
