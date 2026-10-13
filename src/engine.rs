@@ -6,13 +6,13 @@ use winit::{
 
 use crate::{Error, Game, runtime};
 
-/// Configures an engine, defaulting to WALZER and an 800 by 600 logical pixel content area.
+/// Configures an engine, defaulting to OMBIO and an 800 by 600 logical pixel content area.
 pub struct EngineBuilder {
     window_attributes: WindowAttributes,
 }
 
 impl EngineBuilder {
-    /// Sets the window title. Defaults to "WALZER" when omitted.
+    /// Sets the window title. Defaults to "OMBIO" when omitted.
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.window_attributes = self.window_attributes.with_title(title);
         self
@@ -52,7 +52,7 @@ impl Engine {
     pub fn builder() -> EngineBuilder {
         EngineBuilder {
             window_attributes: Window::default_attributes()
-                .with_title("WALZER")
+                .with_title("OMBIO")
                 .with_inner_size(LogicalSize::new(800.0, 600.0)),
         }
     }

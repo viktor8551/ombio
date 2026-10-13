@@ -1,4 +1,4 @@
-use walzer::{Color, Drawable, Engine, Error, Frame, Game, Image, Rectangle, Sprite};
+use ombio::{Color, Drawable, Engine, Error, Frame, Game, Image, Rectangle, Sprite};
 
 struct Panel {
     background: Rectangle,
@@ -37,7 +37,7 @@ fn main() -> Result<(), Error> {
         "/examples/assets/sprite.png"
     ))?;
     Engine::builder()
-        .title("WALZER composed drawables")
+        .title("OMBIO composed drawables")
         .window_size(320, 208)
         .build()?
         .run(DrawableGame {

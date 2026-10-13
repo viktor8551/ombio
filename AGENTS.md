@@ -11,7 +11,7 @@ These rules apply to all work in this repository, including skills and subagents
 
 ### Issue tracker
 
-Use GitHub Issues in `viktor8551/walzer`. See `docs/agents/issue-tracker.md`.
+Use GitHub Issues in `viktor8551/ombio`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

@@ -1,4 +1,4 @@
-use walzer::{Color, Engine, Frame, Game, Image, Rectangle, Sprite};
+use ombio::{Color, Engine, Frame, Game, Image, Rectangle, Sprite};
 
 struct SpriteGame {
     first: Sprite,
@@ -29,13 +29,13 @@ impl Game for SpriteGame {
     }
 }
 
-fn main() -> Result<(), walzer::Error> {
+fn main() -> Result<(), ombio::Error> {
     let image = Image::load(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/examples/assets/sprite.png"
     ))?;
     Engine::builder()
-        .title("WALZER PNG sprites")
+        .title("OMBIO PNG sprites")
         .window_size(320, 208)
         .build()?
         .run(SpriteGame {

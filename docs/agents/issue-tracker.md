@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and specs live in GitHub Issues in `viktor8551/walzer`.
+Issues and specs live in GitHub Issues in `viktor8551/ombio`.
 Use the `gh` CLI.
 
 ## Conventions
@@ -12,7 +12,7 @@ Use the `gh` CLI.
 - Apply or remove labels: `gh issue edit <number> --add-label "..."`
   or `--remove-label "..."`.
 - Close: `gh issue close <number>`.
-- Pass `--repo viktor8551/walzer` when outside this clone.
+- Pass `--repo viktor8551/ombio` when outside this clone.
 - For multiline bodies, write the text to a temporary file and use
   `--body-file`.
 

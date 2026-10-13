@@ -1,4 +1,4 @@
-use walzer::{Color, Context, Engine, Error, Frame, Game, Rectangle};
+use ombio::{Color, Context, Engine, Error, Frame, Game, Rectangle};
 
 struct MovingRectangle {
     phase: f64,
@@ -25,7 +25,7 @@ impl Game for MovingRectangle {
 
 fn main() -> Result<(), Error> {
     Engine::builder()
-        .title("WALZER moving rectangle")
+        .title("OMBIO moving rectangle")
         .window_size(352, 176)
         .build()?
         .run(MovingRectangle { phase: 0.0 })

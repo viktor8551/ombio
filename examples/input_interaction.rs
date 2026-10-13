@@ -1,4 +1,4 @@
-use walzer::{
+use ombio::{
     Color, Context, Engine, Error, Frame, Game, Rectangle,
     input::{KeyCode, MouseButton},
 };

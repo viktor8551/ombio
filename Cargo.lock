@@ -1475,7 +1475,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "walzer"
+name = "ombio"
 version = "0.1.0"
 dependencies = [
  "image",

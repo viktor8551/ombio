@@ -72,11 +72,11 @@ impl Renderer {
             .find(wgpu::TextureFormat::is_srgb)
             .ok_or_else(|| Error::GpuInitialization("surface has no sRGB format".into()))?;
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("WALZER solid color"),
+            label: Some("OMBIO solid color"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/solid.wgsl").into()),
         });
         let rectangle_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("WALZER rectangles"),
+            label: Some("OMBIO rectangles"),
             layout: None,
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -105,11 +105,11 @@ impl Renderer {
             cache: None,
         });
         let sprite_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("WALZER sprite"),
+            label: Some("OMBIO sprite"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/sprite.wgsl").into()),
         });
         let sprite_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("WALZER sprite texture"),
+            label: Some("OMBIO sprite texture"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -131,12 +131,12 @@ impl Renderer {
         });
         let sprite_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("WALZER sprite pipeline layout"),
+                label: Some("OMBIO sprite pipeline layout"),
                 bind_group_layouts: &[Some(&sprite_layout)],
                 immediate_size: 0,
             });
         let sprite_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("WALZER sprites"),
+            label: Some("OMBIO sprites"),
             layout: Some(&sprite_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &sprite_shader,
@@ -165,7 +165,7 @@ impl Renderer {
             cache: None,
         });
         let sprite_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("WALZER sprite sampler"),
+            label: Some("OMBIO sprite sampler"),
             ..Default::default()
         });
         let renderer = Self {
@@ -215,7 +215,7 @@ impl Renderer {
             depth_or_array_layers: 1,
         };
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("WALZER sprite image"),
+            label: Some("OMBIO sprite image"),
             size,
             mip_level_count: 1,
             sample_count: 1,
@@ -236,7 +236,7 @@ impl Renderer {
         );
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("WALZER sprite"),
+            label: Some("OMBIO sprite"),
             layout: &self.sprite_layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -367,7 +367,7 @@ impl Renderer {
         let vertex_buffer = (!vertices.is_empty()).then(|| {
             self.device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("WALZER frame vertices"),
+                    label: Some("OMBIO frame vertices"),
                     contents: &vertices,
                     usage: wgpu::BufferUsages::VERTEX,
                 })
@@ -380,7 +380,7 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("WALZER frame"),
+                label: Some("OMBIO frame"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     depth_slice: None,

@@ -1,4 +1,4 @@
-use walzer::{Color, Engine, Error, Frame, Game, Rectangle};
+use ombio::{Color, Engine, Error, Frame, Game, Rectangle};
 
 struct RectangleGame {
     background: Color,
@@ -14,7 +14,7 @@ impl Game for RectangleGame {
 
 fn main() -> Result<(), Error> {
     Engine::builder()
-        .title("My WALZER game")
+        .title("My OMBIO game")
         .window_size(640, 480)
         .build()?
         .run(RectangleGame {
