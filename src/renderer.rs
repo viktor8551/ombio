@@ -276,15 +276,11 @@ impl Renderer {
         let (texture, suboptimal) = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture) => (texture, false),
             wgpu::CurrentSurfaceTexture::Suboptimal(texture) => (texture, true),
-            wgpu::CurrentSurfaceTexture::Timeout => {
-                window.request_redraw();
-                return Ok(());
-            }
+            wgpu::CurrentSurfaceTexture::Timeout => return Ok(()),
             wgpu::CurrentSurfaceTexture::Occluded => return Ok(()),
             wgpu::CurrentSurfaceTexture::Outdated => {
                 self.surface.configure(&self.device, &self.config);
                 self.check_error()?;
-                window.request_redraw();
                 return Ok(());
             }
             wgpu::CurrentSurfaceTexture::Lost => {

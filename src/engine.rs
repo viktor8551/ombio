@@ -58,7 +58,6 @@ impl Engine {
     }
 
     /// Takes ownership of the game, opens one window and renders on redraw requests.
-    /// The same mutable game is used for every redraw, with no update loop.
     /// Window and event-loop resources are released before returning.
     pub fn run(self, game: impl Game) -> Result<(), Error> {
         runtime::run(self.event_loop, self.window_attributes, game)
