@@ -3,10 +3,15 @@ use std::sync::{Arc, mpsc};
 use wgpu::util::DeviceExt;
 use winit::{event_loop::EventLoopProxy, window::Window};
 
-use crate::{Error, Frame, Game};
+use crate::{Error, Frame, Game, Sprite, frame::DrawCommand};
 
 // Two position components and three linear color components per vertex.
 const RECTANGLE_VERTEX_SIZE: usize = 5 * size_of::<f32>();
+
+pub(crate) struct GpuSprite {
+    pub(crate) device: wgpu::Device,
+    pub(crate) bind_group: wgpu::BindGroup,
+}
 
 pub(crate) struct Renderer {
     // The surface retains its own Arc to the window and is dropped first.
@@ -16,6 +21,9 @@ pub(crate) struct Renderer {
     config: wgpu::SurfaceConfiguration,
     surface_configured: bool,
     rectangle_pipeline: wgpu::RenderPipeline,
+    sprite_pipeline: wgpu::RenderPipeline,
+    sprite_layout: wgpu::BindGroupLayout,
+    sprite_sampler: wgpu::Sampler,
     errors: mpsc::Receiver<Error>,
 }
 
@@ -96,6 +104,70 @@ impl Renderer {
             multiview_mask: None,
             cache: None,
         });
+        let sprite_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("WALZER sprite"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/sprite.wgsl").into()),
+        });
+        let sprite_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("WALZER sprite texture"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
+        let sprite_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("WALZER sprite pipeline layout"),
+                bind_group_layouts: &[Some(&sprite_layout)],
+                immediate_size: 0,
+            });
+        let sprite_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("WALZER sprites"),
+            layout: Some(&sprite_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &sprite_shader,
+                entry_point: Some("vertex"),
+                compilation_options: Default::default(),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: RECTANGLE_VERTEX_SIZE as u64,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
+                }],
+            },
+            primitive: Default::default(),
+            depth_stencil: None,
+            multisample: Default::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &sprite_shader,
+                entry_point: Some("fragment"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+        let sprite_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("WALZER sprite sampler"),
+            ..Default::default()
+        });
         let renderer = Self {
             surface,
             device,
@@ -103,6 +175,9 @@ impl Renderer {
             config,
             surface_configured: false,
             rectangle_pipeline,
+            sprite_pipeline,
+            sprite_layout,
+            sprite_sampler,
             errors,
         };
         renderer.check_error()?;
@@ -114,6 +189,72 @@ impl Renderer {
             Ok(error) => Err(error),
             Err(_) => Ok(()),
         }
+    }
+
+    fn sprite_bind_group(&self, sprite: &Sprite) -> Result<wgpu::BindGroup, Error> {
+        let data = &sprite.data;
+        let mut cached = data
+            .gpu
+            .lock()
+            .map_err(|_| Error::Rendering("sprite GPU cache lock was poisoned".into()))?;
+        if let Some(gpu) = cached.as_ref()
+            && gpu.device == self.device
+        {
+            return Ok(gpu.bind_group.clone());
+        }
+        let limit = self.device.limits().max_texture_dimension_2d;
+        if data.width > limit || data.height > limit {
+            return Err(Error::Rendering(format!(
+                "sprite dimensions {}x{} exceed the GPU texture limit {limit}",
+                data.width, data.height,
+            )));
+        }
+        let size = wgpu::Extent3d {
+            width: data.width,
+            height: data.height,
+            depth_or_array_layers: 1,
+        };
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("WALZER sprite image"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        self.queue.write_texture(
+            texture.as_image_copy(),
+            &data.pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(data.width * 4),
+                rows_per_image: Some(data.height),
+            },
+            size,
+        );
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("WALZER sprite"),
+            layout: &self.sprite_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.sprite_sampler),
+                },
+            ],
+        });
+        self.check_error()?;
+        *cached = Some(GpuSprite {
+            device: self.device.clone(),
+            bind_group: bind_group.clone(),
+        });
+        Ok(bind_group)
     }
 
     pub(crate) fn render(&mut self, window: &Window, game: &mut impl Game) -> Result<(), Error> {
@@ -157,40 +298,68 @@ impl Renderer {
         let mut frame = Frame::new();
         game.render(&mut frame);
         let mut vertices = Vec::new();
+        let mut draws = Vec::new();
         let scale = window.scale_factor();
-        for rectangle in &frame.rectangles {
+        for command in &frame.commands {
+            let (x, y, width, height) = match command {
+                DrawCommand::Rectangle(rectangle) => {
+                    (rectangle.x, rectangle.y, rectangle.width, rectangle.height)
+                }
+                DrawCommand::Sprite { sprite, x, y } => {
+                    (*x, *y, sprite.data.width as f32, sprite.data.height as f32)
+                }
+            };
             // Clip in physical pixels before converting to GPU clip coordinates.
-            let left = (f64::from(rectangle.x) * scale).clamp(0.0, f64::from(size.width));
-            let top = (f64::from(rectangle.y) * scale).clamp(0.0, f64::from(size.height));
-            let right = ((f64::from(rectangle.x) + f64::from(rectangle.width)) * scale)
-                .clamp(0.0, f64::from(size.width));
-            let bottom = ((f64::from(rectangle.y) + f64::from(rectangle.height)) * scale)
-                .clamp(0.0, f64::from(size.height));
+            let origin_x = f64::from(x) * scale;
+            let origin_y = f64::from(y) * scale;
+            let physical_width = f64::from(width) * scale;
+            let physical_height = f64::from(height) * scale;
+            let left = origin_x.clamp(0.0, f64::from(size.width));
+            let top = origin_y.clamp(0.0, f64::from(size.height));
+            let right = (origin_x + physical_width).clamp(0.0, f64::from(size.width));
+            let bottom = (origin_y + physical_height).clamp(0.0, f64::from(size.height));
             if left >= right || top >= bottom {
                 continue;
             }
+            // Clipping crops a sprite's UVs instead of stretching its remaining image.
+            let u_left = ((left - origin_x) / physical_width) as f32;
+            let u_right = ((right - origin_x) / physical_width) as f32;
+            let v_top = ((top - origin_y) / physical_height) as f32;
+            let v_bottom = ((bottom - origin_y) / physical_height) as f32;
             let left = (2.0 * left / f64::from(size.width) - 1.0) as f32;
             let right = (2.0 * right / f64::from(size.width) - 1.0) as f32;
             let top = (1.0 - 2.0 * top / f64::from(size.height)) as f32;
             let bottom = (1.0 - 2.0 * bottom / f64::from(size.height)) as f32;
-            let color = rectangle.color.linear();
-            for (x, y) in [
-                (left, top),
-                (left, bottom),
-                (right, top),
-                (right, top),
-                (left, bottom),
-                (right, bottom),
+            let bind_group = match command {
+                DrawCommand::Sprite { sprite, .. } => Some(self.sprite_bind_group(sprite)?),
+                DrawCommand::Rectangle(_) => None,
+            };
+            let start = (vertices.len() / RECTANGLE_VERTEX_SIZE) as u32;
+            for (x, y, u, v) in [
+                (left, top, u_left, v_top),
+                (left, bottom, u_left, v_bottom),
+                (right, top, u_right, v_top),
+                (right, top, u_right, v_top),
+                (left, bottom, u_left, v_bottom),
+                (right, bottom, u_right, v_bottom),
             ] {
-                for value in [x, y, color.r as f32, color.g as f32, color.b as f32] {
+                let attributes = match command {
+                    DrawCommand::Rectangle(rectangle) => {
+                        let color = rectangle.color.linear();
+                        [color.r as f32, color.g as f32, color.b as f32]
+                    }
+                    DrawCommand::Sprite { .. } => [u, v, 0.0],
+                };
+                for value in [x, y, attributes[0], attributes[1], attributes[2]] {
                     vertices.extend_from_slice(&value.to_ne_bytes());
                 }
             }
+            draws.push((start..start + 6, bind_group));
         }
         let vertex_buffer = (!vertices.is_empty()).then(|| {
             self.device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("WALZER rectangle vertices"),
+                    label: Some("WALZER frame vertices"),
                     contents: &vertices,
                     usage: wgpu::BufferUsages::VERTEX,
                 })
@@ -216,9 +385,16 @@ impl Renderer {
                 ..Default::default()
             });
             if let Some(buffer) = &vertex_buffer {
-                pass.set_pipeline(&self.rectangle_pipeline);
                 pass.set_vertex_buffer(0, buffer.slice(..));
-                pass.draw(0..(vertices.len() / RECTANGLE_VERTEX_SIZE) as u32, 0..1);
+                for (range, bind_group) in &draws {
+                    if let Some(bind_group) = bind_group {
+                        pass.set_pipeline(&self.sprite_pipeline);
+                        pass.set_bind_group(0, bind_group, &[]);
+                    } else {
+                        pass.set_pipeline(&self.rectangle_pipeline);
+                    }
+                    pass.draw(range.clone(), 0..1);
+                }
             }
         }
         self.queue.submit([encoder.finish()]);

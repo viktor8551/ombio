@@ -1,3 +1,5 @@
+use crate::Sprite;
+
 /// An opaque color with red, green and blue sRGB components from 0 to 255.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Color {
@@ -32,7 +34,12 @@ impl Color {
 /// One complete picture. Each redraw starts with an opaque black background.
 pub struct Frame {
     pub(crate) background: Color,
-    pub(crate) rectangles: Vec<Rectangle>,
+    pub(crate) commands: Vec<DrawCommand>,
+}
+
+pub(crate) enum DrawCommand {
+    Rectangle(Rectangle),
+    Sprite { sprite: Sprite, x: f32, y: f32 },
 }
 
 pub(crate) struct Rectangle {
@@ -47,14 +54,14 @@ impl Frame {
     pub(crate) fn new() -> Self {
         Self {
             background: Color::rgb(0, 0, 0),
-            rectangles: Vec::new(),
+            commands: Vec::new(),
         }
     }
 
     /// Fills the picture with an opaque color, discarding earlier drawing in this frame.
     pub fn clear(&mut self, color: Color) {
         self.background = color;
-        self.rectangles.clear();
+        self.commands.clear();
     }
 
     /// Draws an opaque filled rectangle, covering earlier drawing where it overlaps.
@@ -68,12 +75,29 @@ impl Frame {
         if ![x, y, width, height].into_iter().all(f32::is_finite) || width <= 0.0 || height <= 0.0 {
             return;
         }
-        self.rectangles.push(Rectangle {
+        self.commands.push(DrawCommand::Rectangle(Rectangle {
             x,
             y,
             width,
             height,
             color,
+        }));
+    }
+
+    /// Draws a sprite at its natural dimensions in logical pixels.
+    ///
+    /// Position follows [`Frame::fill_rect`]: top-left anchor, x rightward, y
+    /// downward, with DPI scaling and clipping at the content boundary.
+    /// Transparent pixels reveal earlier drawing; partial transparency blends
+    /// with it. Non-finite positions draw nothing.
+    pub fn draw_sprite(&mut self, sprite: &Sprite, x: f32, y: f32) {
+        if !x.is_finite() || !y.is_finite() {
+            return;
+        }
+        self.commands.push(DrawCommand::Sprite {
+            sprite: sprite.clone(),
+            x,
+            y,
         });
     }
 }

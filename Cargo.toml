@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 
 [target.'cfg(windows)'.dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
 wgpu = { version = "29", default-features = false, features = ["std", "dx12", "wgsl"] }
 pollster = "0.4"
