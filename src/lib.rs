@@ -6,6 +6,7 @@ mod error;
 mod frame;
 mod game;
 mod image;
+pub mod input;
 mod renderer;
 mod runtime;
 mod sprite;

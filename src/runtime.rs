@@ -7,6 +7,7 @@ use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
+    keyboard::PhysicalKey,
     window::{Window, WindowAttributes, WindowId},
 };
 
@@ -80,6 +81,7 @@ impl<G: Game> Application<G> {
         }
         self.context.advance(now);
         self.game.update(&self.context);
+        self.context.input_mut().finish_update();
         self.next_update = Some(Instant::now() + UPDATE_INTERVAL);
         true
     }
@@ -145,6 +147,12 @@ impl<G: Game> ApplicationHandler for Application<G> {
         }
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let PhysicalKey::Code(key) = event.physical_key {
+                    self.context.input_mut().handle_key(key, event.state);
+                }
+            }
+            WindowEvent::Focused(false) => self.context.input_mut().release_all(),
             WindowEvent::RedrawRequested => {
                 if !self.can_render() {
                     return;
