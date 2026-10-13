@@ -1,12 +1,15 @@
-use walzer::{Color, Context, Engine, Error, Frame, Game, Rectangle, input::KeyCode};
+use walzer::{
+    Color, Context, Engine, Error, Frame, Game, Rectangle,
+    input::{KeyCode, MouseButton},
+};
 
-struct KeyboardMovement {
+struct InputInteraction {
     x: f32,
     y: f32,
     highlighted: bool,
 }
 
-impl Game for KeyboardMovement {
+impl Game for InputInteraction {
     fn update(&mut self, context: &Context) {
         let keyboard = context.input().keyboard();
         let distance = 120.0 * context.time().delta_time().as_secs_f32();
@@ -29,6 +32,21 @@ impl Game for KeyboardMovement {
             self.x = 160.0;
             self.y = 112.0;
         }
+        let mouse = context.input().mouse();
+        if mouse.is_inside_window()
+            && mouse.is_down(MouseButton::Left)
+            && let Some((x, y)) = mouse.position()
+        {
+            self.x = x as f32 - 16.0;
+            self.y = y as f32 - 16.0;
+        }
+        if mouse.just_pressed(MouseButton::Right) {
+            self.highlighted = !self.highlighted;
+        }
+        let (line_x, line_y) = mouse.scroll_lines();
+        let (pixel_x, pixel_y) = mouse.scroll_pixels();
+        self.x += (line_x * 16.0 + pixel_x) as f32;
+        self.y += (line_y * 16.0 + pixel_y) as f32;
     }
 
     fn render(&mut self, frame: &mut Frame) {
@@ -44,10 +62,12 @@ impl Game for KeyboardMovement {
 
 fn main() -> Result<(), Error> {
     Engine::builder()
-        .title("Keyboard Example. Arrows to move, Space changes color, release R to reset")
+        .title(
+            "Arrows/left drag: move | Space/right click: color | Scroll: move | Release R: reset",
+        )
         .window_size(352, 256)
         .build()?
-        .run(KeyboardMovement {
+        .run(InputInteraction {
             x: 160.0,
             y: 112.0,
             highlighted: false,

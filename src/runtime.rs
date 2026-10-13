@@ -101,6 +101,9 @@ impl<G: Game> ApplicationHandler for Application<G> {
         match event_loop.create_window(self.window_attributes.clone()) {
             Ok(window) => {
                 let window = Arc::new(window);
+                self.context
+                    .input_mut()
+                    .set_scale_factor(window.scale_factor());
                 match pollster::block_on(Renderer::new(window.clone(), self.proxy.clone())) {
                     Ok(renderer) => {
                         self.renderer = Some(renderer);
@@ -145,6 +148,7 @@ impl<G: Game> ApplicationHandler for Application<G> {
         {
             return;
         }
+        self.context.input_mut().handle_mouse_event(&event);
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput { event, .. } => {
