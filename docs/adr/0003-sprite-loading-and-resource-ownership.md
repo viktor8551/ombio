@@ -1,3 +1,5 @@
 # Sprite loading and resource ownership
 
+**Partially superseded by [ADR 0004](0004-drawable-and-shared-images.md):** The loading API and Sprite-as-resource model are replaced. The retained loading and resource-ownership decisions are described there.
+
 Sprites load synchronously from PNG files through `Sprite::load(path)`, independently of the engine, returning a reusable sprite or a loading error so games can load images both before startup and during play. Rather than requiring an engine resource manager for loading, OMBIO uploads an image to the GPU when it is first drawn, preserving ADR 0001's window lifecycle and ADR 0002's engine-managed GPU resources; this makes loading available before GPU initialization but defers upload work until drawing and allows synchronous loading to pause play. Cloning a sprite shares its image and GPU resources, dropping the last copy allows those resources to be released, and separate loads of the same path read independent images rather than using an implicit file cache.
