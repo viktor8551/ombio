@@ -1,4 +1,4 @@
-use ombio::{Color, Drawable, Engine, Error, Frame, Game, Image, Rectangle, Sprite};
+use ombio::{Color, Drawable, Engine, Error, Frame, Game, Image, Rectangle, Sprite, View};
 
 struct Panel {
     background: Rectangle,
@@ -6,9 +6,9 @@ struct Panel {
 }
 
 impl Drawable for Panel {
-    fn draw(&self, frame: &mut Frame) {
-        frame.draw(&self.background);
-        frame.draw(&self.foreground);
+    fn draw(&self, view: &mut View<'_>) {
+        view.draw(&self.background);
+        view.draw(&self.foreground);
     }
 }
 

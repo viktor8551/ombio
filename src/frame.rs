@@ -1,4 +1,4 @@
-use crate::Image;
+use crate::{Camera, Image, camera::Projection};
 
 /// A color with sRGB red, green and blue components and linear alpha from 0 to 255.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,7 +44,14 @@ impl Color {
 /// One complete picture. Each redraw starts with an opaque black background.
 pub struct Frame {
     pub(crate) background: Color,
-    pub(crate) commands: Vec<DrawCommand>,
+    pub(crate) draws: Vec<RecordedDraw>,
+    pub(crate) size: (u32, u32),
+    window_projection: Option<Projection>,
+}
+
+pub(crate) struct RecordedDraw {
+    pub(crate) projection: Projection,
+    pub(crate) command: DrawCommand,
 }
 
 pub(crate) enum DrawCommand {
@@ -52,9 +59,9 @@ pub(crate) enum DrawCommand {
     Sprite { image: Image, x: f32, y: f32 },
 }
 
-/// Something that can be drawn through [`Frame::draw`].
+/// Something that can be drawn through a Frame or View.
 pub trait Drawable {
-    fn draw(&self, frame: &mut Frame);
+    fn draw(&self, view: &mut View<'_>);
 }
 
 /// A filled rectangle in logical pixels from the top-left.
@@ -80,7 +87,7 @@ impl Rectangle {
 }
 
 impl Drawable for Rectangle {
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&self, view: &mut View<'_>) {
         if ![self.x, self.y, self.width, self.height]
             .into_iter()
             .all(f32::is_finite)
@@ -89,26 +96,69 @@ impl Drawable for Rectangle {
         {
             return;
         }
-        frame.commands.push(DrawCommand::Rectangle(*self));
+        view.submit(DrawCommand::Rectangle(*self));
     }
 }
 
 impl Frame {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(size: (u32, u32), dpi_scale: f64) -> Self {
         Self {
             background: Color::rgb(0, 0, 0),
-            commands: Vec::new(),
+            draws: Vec::new(),
+            size,
+            window_projection: Projection::window(size, dpi_scale),
         }
     }
 
     /// Fills the picture with a color, discarding earlier drawing in this frame.
     pub fn clear(&mut self, color: Color) {
         self.background = color;
-        self.commands.clear();
+        self.draws.clear();
     }
 
-    /// Draws an object after earlier submissions.
+    /// Draws in window coordinates, after earlier submissions.
     pub fn draw(&mut self, drawable: &(impl Drawable + ?Sized)) {
-        drawable.draw(self);
+        self.drawing(self.window_projection).draw(drawable);
+    }
+
+    /// Full-window View centered on a camera snapshot, without clearing.
+    /// Zoom 1 preserves logical pixels; x points right, y down.
+    /// Non-finite camera values, zoom <= 0, or zero-sized windows draw nothing.
+    pub fn view(&mut self, camera: &Camera) -> View<'_> {
+        let projection = self
+            .window_projection
+            .and_then(|window| camera.projection(self.size, window.scale));
+        self.drawing(projection)
+    }
+
+    fn drawing(&mut self, projection: Option<Projection>) -> View<'_> {
+        View {
+            draws: &mut self.draws,
+            projection,
+        }
+    }
+}
+
+/// A temporary drawing handle borrowing a Frame's submission list.
+pub struct View<'a> {
+    draws: &'a mut Vec<RecordedDraw>,
+    projection: Option<Projection>,
+}
+
+impl View<'_> {
+    /// Draws an object or composition using this View's coordinates.
+    pub fn draw(&mut self, drawable: &(impl Drawable + ?Sized)) {
+        if self.projection.is_some() {
+            drawable.draw(self);
+        }
+    }
+
+    pub(crate) fn submit(&mut self, command: DrawCommand) {
+        if let Some(projection) = self.projection {
+            self.draws.push(RecordedDraw {
+                projection,
+                command,
+            });
+        }
     }
 }

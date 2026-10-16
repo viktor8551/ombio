@@ -1,6 +1,6 @@
-use crate::{Drawable, Frame, Image, frame::DrawCommand};
+use crate::{Drawable, Image, View, frame::DrawCommand};
 
-/// An [`Image`] placed at x and y, drawn through [`Frame::draw`].
+/// An [`Image`] placed at x and y, drawn through a Frame or View.
 #[derive(Clone)]
 pub struct Sprite {
     pub image: Image,
@@ -15,11 +15,11 @@ impl Sprite {
 }
 
 impl Drawable for Sprite {
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&self, view: &mut View<'_>) {
         if !self.x.is_finite() || !self.y.is_finite() {
             return;
         }
-        frame.commands.push(DrawCommand::Sprite {
+        view.submit(DrawCommand::Sprite {
             image: self.image.clone(),
             x: self.x,
             y: self.y,

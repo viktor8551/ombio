@@ -291,55 +291,25 @@ impl Renderer {
                 return Err(Error::Rendering("surface texture validation failed".into()));
             }
         };
-        let mut frame = Frame::new();
+        let mut frame = Frame::new((size.width, size.height), window.scale_factor());
         game.render(&mut frame);
         let mut vertices = Vec::new();
         let mut draws = Vec::new();
-        let scale = window.scale_factor();
-        for command in &frame.commands {
-            let (x, y, width, height) = match command {
-                DrawCommand::Rectangle(rectangle) => {
-                    (rectangle.x, rectangle.y, rectangle.width, rectangle.height)
-                }
-                DrawCommand::Sprite { image, x, y } => {
-                    (*x, *y, image.data.width as f32, image.data.height as f32)
-                }
-            };
-            // Clip in physical pixels before converting to GPU clip coordinates.
-            let origin_x = f64::from(x) * scale;
-            let origin_y = f64::from(y) * scale;
-            let physical_width = f64::from(width) * scale;
-            let physical_height = f64::from(height) * scale;
-            let left = origin_x.clamp(0.0, f64::from(size.width));
-            let top = origin_y.clamp(0.0, f64::from(size.height));
-            let right = (origin_x + physical_width).clamp(0.0, f64::from(size.width));
-            let bottom = (origin_y + physical_height).clamp(0.0, f64::from(size.height));
-            if left >= right || top >= bottom {
-                continue;
-            }
-            // Clipping crops a sprite's UVs instead of stretching its remaining image.
-            let u_left = ((left - origin_x) / physical_width) as f32;
-            let u_right = ((right - origin_x) / physical_width) as f32;
-            let v_top = ((top - origin_y) / physical_height) as f32;
-            let v_bottom = ((bottom - origin_y) / physical_height) as f32;
-            let left = (2.0 * left / f64::from(size.width) - 1.0) as f32;
-            let right = (2.0 * right / f64::from(size.width) - 1.0) as f32;
-            let top = (1.0 - 2.0 * top / f64::from(size.height)) as f32;
-            let bottom = (1.0 - 2.0 * bottom / f64::from(size.height)) as f32;
-            let bind_group = match command {
+        for quad in crate::geometry::project(&frame) {
+            let bind_group = match quad.command {
                 DrawCommand::Sprite { image, .. } => Some(self.image_bind_group(image)?),
                 DrawCommand::Rectangle(_) => None,
             };
             let start = (vertices.len() / VERTEX_SIZE) as u32;
             for (x, y, u, v) in [
-                (left, top, u_left, v_top),
-                (left, bottom, u_left, v_bottom),
-                (right, top, u_right, v_top),
-                (right, top, u_right, v_top),
-                (left, bottom, u_left, v_bottom),
-                (right, bottom, u_right, v_bottom),
+                (quad.left, quad.top, quad.u_left, quad.v_top),
+                (quad.left, quad.bottom, quad.u_left, quad.v_bottom),
+                (quad.right, quad.top, quad.u_right, quad.v_top),
+                (quad.right, quad.top, quad.u_right, quad.v_top),
+                (quad.left, quad.bottom, quad.u_left, quad.v_bottom),
+                (quad.right, quad.bottom, quad.u_right, quad.v_bottom),
             ] {
-                let attributes = match command {
+                let attributes = match quad.command {
                     DrawCommand::Rectangle(rectangle) => {
                         let color = rectangle.color.linear();
                         [
