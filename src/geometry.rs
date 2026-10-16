@@ -51,10 +51,11 @@ fn project_command(
     {
         return None;
     }
-    let left = origin_x.clamp(0.0, f64::from(size.0));
-    let top = origin_y.clamp(0.0, f64::from(size.1));
-    let right = (origin_x + physical_width).clamp(0.0, f64::from(size.0));
-    let bottom = (origin_y + physical_height).clamp(0.0, f64::from(size.1));
+    let clip = projection.clip;
+    let left = origin_x.clamp(clip.left, clip.right);
+    let top = origin_y.clamp(clip.top, clip.bottom);
+    let right = (origin_x + physical_width).clamp(clip.left, clip.right);
+    let bottom = (origin_y + physical_height).clamp(clip.top, clip.bottom);
     if left >= right || top >= bottom {
         return None;
     }

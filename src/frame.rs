@@ -1,4 +1,4 @@
-use crate::{Camera, Image, camera::Projection};
+use crate::{Camera, Image, Viewport, camera::Projection};
 
 /// A color with sRGB red, green and blue components and linear alpha from 0 to 255.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,6 +46,7 @@ pub struct Frame {
     pub(crate) background: Color,
     pub(crate) draws: Vec<RecordedDraw>,
     pub(crate) size: (u32, u32),
+    dpi_scale: f64,
     window_projection: Option<Projection>,
 }
 
@@ -106,6 +107,7 @@ impl Frame {
             background: Color::rgb(0, 0, 0),
             draws: Vec::new(),
             size,
+            dpi_scale,
             window_projection: Projection::window(size, dpi_scale),
         }
     }
@@ -124,6 +126,7 @@ impl Frame {
     /// Full-window View centered on a camera snapshot, without clearing.
     /// Zoom 1 preserves logical pixels; x points right, y down.
     /// Non-finite camera values, zoom <= 0, or zero-sized windows draw nothing.
+    /// Use [`View::with_viewport`] to request a smaller or offset area.
     pub fn view(&mut self, camera: &Camera) -> View<'_> {
         let projection = self
             .window_projection
@@ -131,10 +134,23 @@ impl Frame {
         self.drawing(projection)
     }
 
+    /// Current drawable window dimensions in logical pixels.
+    pub fn window_size(&self) -> (f64, f64) {
+        if !self.dpi_scale.is_finite() || self.dpi_scale <= 0.0 {
+            return (0.0, 0.0);
+        }
+        (
+            f64::from(self.size.0) / self.dpi_scale,
+            f64::from(self.size.1) / self.dpi_scale,
+        )
+    }
+
     fn drawing(&mut self, projection: Option<Projection>) -> View<'_> {
         View {
             draws: &mut self.draws,
             projection,
+            full_window_projection: projection,
+            dpi_scale: self.dpi_scale,
         }
     }
 }
@@ -143,9 +159,31 @@ impl Frame {
 pub struct View<'a> {
     draws: &'a mut Vec<RecordedDraw>,
     projection: Option<Projection>,
+    full_window_projection: Option<Projection>,
+    dpi_scale: f64,
 }
 
 impl View<'_> {
+    /// Uses an explicit logical rectangle instead of the full window.
+    ///
+    /// The rectangle is copied and does not scale with window resizing. This
+    /// neither clears the area nor changes the Camera. Invalid or entirely
+    /// off-window rectangles draw nothing; previous submissions stay unchanged.
+    pub fn with_viewport(mut self, viewport: Viewport) -> Self {
+        self.set_viewport(Some(viewport));
+        self
+    }
+
+    /// Changes the rectangle for subsequent draws. `None` restores the full window.
+    /// Each primitive captures its current Camera and Viewport geometry.
+    pub fn set_viewport(&mut self, viewport: Option<Viewport>) {
+        self.projection = self.full_window_projection.and_then(|projection| {
+            viewport.map_or(Some(projection), |viewport| {
+                projection.in_viewport(viewport, self.dpi_scale)
+            })
+        });
+    }
+
     /// Draws an object or composition using this View's coordinates.
     pub fn draw(&mut self, drawable: &(impl Drawable + ?Sized)) {
         if self.projection.is_some() {

@@ -14,7 +14,7 @@ mod runtime;
 mod sprite;
 mod time;
 
-pub use camera::Camera;
+pub use camera::{Camera, Viewport};
 pub use context::Context;
 pub use engine::{Engine, EngineBuilder};
 pub use error::Error;

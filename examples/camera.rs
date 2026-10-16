@@ -1,6 +1,6 @@
 use ombio::{
     Camera, Color, Context, Drawable, Engine, Error, Frame, Game, Image, Rectangle, Sprite, View,
-    input::KeyCode,
+    Viewport, input::KeyCode,
 };
 
 struct Scenery {
@@ -16,11 +16,49 @@ impl Drawable for Scenery {
     }
 }
 
+// The same nested composition is submitted through both Cameras.
+struct World<'a> {
+    scenery: &'a Scenery,
+    player: &'a Rectangle,
+}
+
+impl Drawable for World<'_> {
+    fn draw(&self, view: &mut View<'_>) {
+        view.draw(self.scenery);
+        view.draw(self.player);
+    }
+}
+
 struct CameraGame {
     camera: Camera,
+    minimap_camera: Camera,
     player: Rectangle,
     scenery: Scenery,
     following: bool,
+    split_screen: bool,
+}
+
+impl CameraGame {
+    fn new() -> Result<Self, Error> {
+        let image = Image::load(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/assets/sprite.png"
+        ))?;
+
+        Ok(Self {
+            camera: Camera::default(),
+            minimap_camera: Camera {
+                zoom: 0.25,
+                ..Camera::default()
+            },
+            player: Rectangle::new(-20.0, -14.0, 28.0, 28.0, Color::rgb(248, 192, 64)),
+            scenery: Scenery {
+                marker: Sprite::new(image, 160.0, 96.0),
+            },
+            following: true,
+            split_screen: false,
+        })
+    }
 }
 
 impl Game for CameraGame {
@@ -42,6 +80,9 @@ impl Game for CameraGame {
         if keyboard.just_pressed(KeyCode::Space) {
             self.following = !self.following;
         }
+        if keyboard.just_pressed(KeyCode::Tab) {
+            self.split_screen = !self.split_screen;
+        }
         if self.following {
             self.camera.x = self.player.x + self.player.width / 2.0;
             self.camera.y = self.player.y + self.player.height / 2.0;
@@ -54,10 +95,43 @@ impl Game for CameraGame {
     fn render(&mut self, frame: &mut Frame) {
         frame.clear(Color::rgb(24, 32, 48));
 
-        let mut world = frame.view(&self.camera);
-        world.draw(&self.scenery);
-        world.draw(&self.player);
+        let world = World {
+            scenery: &self.scenery,
+            player: &self.player,
+        };
+        let (width, height) = frame.window_size();
+        let mut main = frame.view(&self.camera);
+        if self.split_screen {
+            main.set_viewport(Some(Viewport::new(
+                0.0,
+                0.0,
+                width as f32 / 2.0,
+                height as f32,
+            )));
+        }
+        main.draw(&world);
 
+        // The inset keeps its explicit logical layout on resize. Tab switches to
+        // two adjacent rectangles through the very same View API.
+        let viewport = if self.split_screen {
+            Viewport::new(width as f32 / 2.0, 0.0, width as f32 / 2.0, height as f32)
+        } else {
+            Viewport::new(564.0, 20.0, 216.0, 160.0)
+        };
+        let mut minimap = frame.view(&self.minimap_camera).with_viewport(viewport);
+        // Views never clear automatically, so draw an explicit opaque background.
+        let world_width = viewport.width / self.minimap_camera.zoom;
+        let world_height = viewport.height / self.minimap_camera.zoom;
+        minimap.draw(&Rectangle::new(
+            self.minimap_camera.x - world_width / 2.0,
+            self.minimap_camera.y - world_height / 2.0,
+            world_width,
+            world_height,
+            Color::rgb(40, 52, 64),
+        ));
+        minimap.draw(&world);
+
+        // Fixed UI is submitted last and can cross either Viewport.
         let status = if self.following {
             Color::rgb(80, 216, 128)
         } else {
@@ -82,20 +156,10 @@ impl Game for CameraGame {
 }
 
 fn main() -> Result<(), Error> {
-    let image = Image::load(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/examples/assets/sprite.png"
-    ))?;
-    Engine::builder()
-        .title("WASD: move | Space: follow on/off | Scroll: zoom")
+    let engine = Engine::builder()
+        .title("WASD: move | Space: follow | Scroll: zoom | Tab: split")
         .window_size(800, 600)
-        .build()?
-        .run(CameraGame {
-            camera: Camera::default(),
-            player: Rectangle::new(-20.0, -14.0, 28.0, 28.0, Color::rgb(248, 192, 64)),
-            scenery: Scenery {
-                marker: Sprite::new(image, 160.0, 96.0),
-            },
-            following: true,
-        })
+        .build()?;
+
+    engine.run(CameraGame::new()?)
 }
