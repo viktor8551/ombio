@@ -1,0 +1,3 @@
+# Camera views and viewports
+
+To support camera movement, zoom, and multiple views of the world, extend ADR 0004 with `Frame::view(&camera)` for drawing through a camera into a viewport that defaults to the whole window, while retaining direct `Frame::draw()` in window coordinates for fixed UI. Grouping draws through a view makes the camera explicit without requiring closures or switching a frame-wide active camera, and optional rectangular viewports support minimaps and split-screen through the same interface. Views contribute to the same ordered frame without automatically clearing their viewport, preserving drawable composition and submission snapshots by capturing camera and viewport settings with each draw.

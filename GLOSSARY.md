@@ -10,6 +10,15 @@ The application running in OMBIO, including the state that determines what it dr
 **Frame**:
 One complete picture drawn by the application for display in the window.
 
+**Camera**:
+A description of where to look in the game world and how far to zoom in. Changing a camera changes the view without changing the positions of objects in the world.
+
+**Viewport**:
+A rectangular area of the window in which a view appears. It bounds the visible drawing of that view.
+
+**View**:
+Drawing into a frame through a particular camera within a viewport. Several views may contribute to the same frame.
+
 **Drawable**:
 An object that describes a picture within a frame, including its placement. It may combine other drawables into one picture.
 
