@@ -1,4 +1,4 @@
-use crate::{Drawable, Image, View, frame::DrawCommand};
+use super::{Drawable, Image, View, frame::DrawCommand};
 
 /// An [`Image`] placed at x and y, drawn through a Frame or View.
 #[derive(Clone)]

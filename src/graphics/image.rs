@@ -3,7 +3,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{Error, renderer::GpuImage};
+use crate::Error;
+
+use super::renderer::GpuImage;
 
 /// A reusable PNG image shared by sprites.
 #[derive(Clone)]

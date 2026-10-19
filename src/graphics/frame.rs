@@ -1,4 +1,4 @@
-use crate::{Camera, Image, Viewport, camera::Projection};
+use super::{Camera, Image, Viewport, camera::Projection};
 
 /// A color with sRGB red, green and blue components and linear alpha from 0 to 255.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

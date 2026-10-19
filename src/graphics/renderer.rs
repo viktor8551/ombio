@@ -3,7 +3,9 @@ use std::sync::{Arc, mpsc};
 use wgpu::util::DeviceExt;
 use winit::{event_loop::EventLoopProxy, window::Window};
 
-use crate::{Error, Frame, Game, Image, frame::DrawCommand, graphics::logical_size};
+use crate::{Error, Game};
+
+use super::{Frame, Image, frame::DrawCommand, geometry, logical_size};
 
 // Two position components and four linear color components per vertex.
 const VERTEX_SIZE: usize = 6 * size_of::<f32>();
@@ -294,7 +296,7 @@ impl Renderer {
         game.render(&mut frame);
         let mut vertices = Vec::new();
         let mut draws = Vec::new();
-        for quad in crate::geometry::project(&frame) {
+        for quad in geometry::project(&frame) {
             let bind_group = match quad.command {
                 DrawCommand::Sprite { image, .. } => Some(self.image_bind_group(image)?),
                 DrawCommand::Rectangle(_) => None,

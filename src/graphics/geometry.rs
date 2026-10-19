@@ -1,4 +1,4 @@
-use crate::{Frame, camera::Projection, frame::DrawCommand};
+use super::{Frame, camera::Projection, frame::DrawCommand};
 
 pub(crate) struct Geometry<'a> {
     pub(crate) command: &'a DrawCommand,

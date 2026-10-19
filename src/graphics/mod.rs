@@ -1,8 +1,22 @@
+mod camera;
+mod frame;
+mod geometry;
+mod image;
+mod renderer;
+mod sprite;
+
+pub use camera::{Camera, Viewport};
+pub use frame::{Color, Drawable, Frame, Rectangle, View};
+pub use image::Image;
+pub use sprite::Sprite;
+
 use std::sync::Arc;
 
 use winit::{dpi::PhysicalSize, event_loop::EventLoopProxy, window::Window};
 
-use crate::{Error, renderer::Renderer};
+use crate::Error;
+
+use self::renderer::Renderer;
 
 pub struct Graphics {
     pub(crate) renderer: Renderer,
