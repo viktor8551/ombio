@@ -3,7 +3,7 @@ use std::sync::{Arc, mpsc};
 use wgpu::util::DeviceExt;
 use winit::{event_loop::EventLoopProxy, window::Window};
 
-use crate::{Error, Frame, Game, Image, frame::DrawCommand};
+use crate::{Error, Frame, Game, Image, frame::DrawCommand, graphics::logical_size};
 
 // Two position components and four linear color components per vertex.
 const VERTEX_SIZE: usize = 6 * size_of::<f32>();
@@ -260,15 +260,14 @@ impl Renderer {
     pub(crate) fn render(&mut self, window: &Window, game: &mut impl Game) -> Result<(), Error> {
         self.check_error()?;
         let size = window.inner_size();
-        if window.is_minimized() == Some(true) || size.width == 0 || size.height == 0 {
+        let (width, height) = (size.width, size.height);
+        if window.is_minimized() == Some(true) || width == 0 || height == 0 {
             return Ok(());
         }
         // Configure only when a usable drawable area is available, including the first frame.
-        if !self.surface_configured
-            || (self.config.width, self.config.height) != (size.width, size.height)
-        {
-            self.config.width = size.width;
-            self.config.height = size.height;
+        if !self.surface_configured || (self.config.width, self.config.height) != (width, height) {
+            self.config.width = width;
+            self.config.height = height;
             self.surface.configure(&self.device, &self.config);
             self.check_error()?;
             self.surface_configured = true;
@@ -291,7 +290,7 @@ impl Renderer {
                 return Err(Error::Rendering("surface texture validation failed".into()));
             }
         };
-        let mut frame = Frame::new((size.width, size.height), window.scale_factor());
+        let mut frame = Frame::new(logical_size(size, window.scale_factor()));
         game.render(&mut frame);
         let mut vertices = Vec::new();
         let mut draws = Vec::new();

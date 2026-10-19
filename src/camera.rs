@@ -39,24 +39,24 @@ pub(crate) struct Projection {
 }
 
 impl Projection {
-    pub(crate) fn window(size: (u32, u32), scale: f64) -> Option<Self> {
-        if size.0 == 0 || size.1 == 0 || !scale.is_finite() || scale <= 0.0 {
+    pub(crate) fn window(size: (f64, f64)) -> Option<Self> {
+        if ![size.0, size.1].into_iter().all(f64::is_finite) || size.0 <= 0.0 || size.1 <= 0.0 {
             return None;
         }
         Some(Self {
             origin: (0.0, 0.0),
             offset: (0.0, 0.0),
-            scale,
+            scale: 1.0,
             clip: Clip {
                 left: 0.0,
                 top: 0.0,
-                right: f64::from(size.0),
-                bottom: f64::from(size.1),
+                right: size.0,
+                bottom: size.1,
             },
         })
     }
 
-    pub(crate) fn in_viewport(mut self, viewport: Viewport, dpi_scale: f64) -> Option<Self> {
+    pub(crate) fn in_viewport(mut self, viewport: Viewport) -> Option<Self> {
         if ![viewport.x, viewport.y, viewport.width, viewport.height]
             .into_iter()
             .all(f32::is_finite)
@@ -65,10 +65,10 @@ impl Projection {
         {
             return None;
         }
-        let left = f64::from(viewport.x) * dpi_scale;
-        let top = f64::from(viewport.y) * dpi_scale;
-        let width = f64::from(viewport.width) * dpi_scale;
-        let height = f64::from(viewport.height) * dpi_scale;
+        let left = f64::from(viewport.x);
+        let top = f64::from(viewport.y);
+        let width = f64::from(viewport.width);
+        let height = f64::from(viewport.height);
         let right = left + width;
         let bottom = top + height;
         let center = (left + width / 2.0, top + height / 2.0);
@@ -90,6 +90,24 @@ impl Projection {
         self.offset = center;
         Some(self)
     }
+
+    fn unproject(self, position: (f64, f64)) -> Option<(f64, f64)> {
+        let (x, y) = position;
+        if !x.is_finite()
+            || !y.is_finite()
+            || x < self.clip.left
+            || x >= self.clip.right
+            || y < self.clip.top
+            || y >= self.clip.bottom
+        {
+            return None;
+        }
+        let world = (
+            (x - self.offset.0) / self.scale + self.origin.0,
+            (y - self.offset.1) / self.scale + self.origin.1,
+        );
+        (world.0.is_finite() && world.1.is_finite()).then_some(world)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -104,18 +122,32 @@ impl Camera {
         Self { x, y, zoom: 1.0 }
     }
 
-    pub(crate) fn projection(self, view_size: (u32, u32), dpi_scale: f64) -> Option<Projection> {
+    /// Logical window pixels to world coordinates; `None` viewport uses the full window.
+    /// Includes left/top edges, excludes right/bottom. Invalid inputs, outside points,
+    /// and non-finite results return `None`.
+    pub fn window_to_world(
+        &self,
+        position: (f64, f64),
+        window_size: (f64, f64),
+        viewport: Option<Viewport>,
+    ) -> Option<(f64, f64)> {
+        let projection = self.projection(window_size)?;
+        let projection = match viewport {
+            Some(viewport) => projection.in_viewport(viewport)?,
+            None => projection,
+        };
+        projection.unproject(position)
+    }
+
+    pub(crate) fn projection(self, view_size: (f64, f64)) -> Option<Projection> {
         if !self.x.is_finite() || !self.y.is_finite() || !self.zoom.is_finite() || self.zoom <= 0.0
         {
             return None;
         }
-        let mut projection = Projection::window(view_size, dpi_scale)?;
+        let mut projection = Projection::window(view_size)?;
         projection.origin = (f64::from(self.x), f64::from(self.y));
-        projection.offset = (f64::from(view_size.0) / 2.0, f64::from(view_size.1) / 2.0);
-        projection.scale *= f64::from(self.zoom);
-        if !projection.scale.is_finite() || projection.scale <= 0.0 {
-            return None;
-        }
+        projection.offset = (view_size.0 / 2.0, view_size.1 / 2.0);
+        projection.scale = f64::from(self.zoom);
         Some(projection)
     }
 }

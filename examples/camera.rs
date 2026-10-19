@@ -1,6 +1,7 @@
 use ombio::{
     Camera, Color, Context, Drawable, Engine, Error, Frame, Game, Image, Rectangle, Sprite, View,
-    Viewport, input::KeyCode,
+    Viewport,
+    input::{KeyCode, MouseButton},
 };
 
 struct Scenery {
@@ -20,12 +21,14 @@ impl Drawable for Scenery {
 struct World<'a> {
     scenery: &'a Scenery,
     player: &'a Rectangle,
+    target: &'a Rectangle,
 }
 
 impl Drawable for World<'_> {
     fn draw(&self, view: &mut View<'_>) {
         view.draw(self.scenery);
         view.draw(self.player);
+        view.draw(self.target);
     }
 }
 
@@ -36,6 +39,7 @@ struct CameraGame {
     scenery: Scenery,
     following: bool,
     split_screen: bool,
+    target: Rectangle,
 }
 
 impl CameraGame {
@@ -57,7 +61,20 @@ impl CameraGame {
             },
             following: true,
             split_screen: false,
+            target: Rectangle::new(-5.0, -5.0, 10.0, 10.0, Color::rgb(248, 96, 112)),
         })
+    }
+
+    fn viewports(&self, (width, height): (f64, f64)) -> (Option<Viewport>, Viewport) {
+        if self.split_screen {
+            let half = width as f32 / 2.0;
+            (
+                Some(Viewport::new(0.0, 0.0, half, height as f32)),
+                Viewport::new(half, 0.0, half, height as f32),
+            )
+        } else {
+            (None, Viewport::new(564.0, 20.0, 216.0, 160.0))
+        }
     }
 }
 
@@ -90,6 +107,24 @@ impl Game for CameraGame {
         let mouse = context.input().mouse();
         let scroll = (mouse.scroll_lines().1 + mouse.scroll_pixels().1 / 40.0) as f32;
         self.camera.zoom = (self.camera.zoom * 1.1_f32.powf(scroll)).clamp(0.25, 4.0);
+        if mouse.is_inside_window()
+            && mouse.just_pressed(MouseButton::Left)
+            && let Some(position) = mouse.position()
+        {
+            if (12.0..204.0).contains(&position.0) && (12.0..68.0).contains(&position.1) {
+                return;
+            }
+            let size = context.graphics().window_size();
+            let (main, minimap) = self.viewports(size);
+            let world = self
+                .minimap_camera
+                .window_to_world(position, size, Some(minimap))
+                .or_else(|| self.camera.window_to_world(position, size, main));
+            if let Some((x, y)) = world {
+                self.target.x = x as f32 - self.target.width / 2.0;
+                self.target.y = y as f32 - self.target.height / 2.0;
+            }
+        }
     }
 
     fn render(&mut self, frame: &mut Frame) {
@@ -98,26 +133,13 @@ impl Game for CameraGame {
         let world = World {
             scenery: &self.scenery,
             player: &self.player,
+            target: &self.target,
         };
-        let (width, height) = frame.window_size();
+        let (main_viewport, viewport) = self.viewports(frame.window_size());
         let mut main = frame.view(&self.camera);
-        if self.split_screen {
-            main.set_viewport(Some(Viewport::new(
-                0.0,
-                0.0,
-                width as f32 / 2.0,
-                height as f32,
-            )));
-        }
+        main.set_viewport(main_viewport);
         main.draw(&world);
 
-        // The inset keeps its explicit logical layout on resize. Tab switches to
-        // two adjacent rectangles through the very same View API.
-        let viewport = if self.split_screen {
-            Viewport::new(width as f32 / 2.0, 0.0, width as f32 / 2.0, height as f32)
-        } else {
-            Viewport::new(564.0, 20.0, 216.0, 160.0)
-        };
         let mut minimap = frame.view(&self.minimap_camera).with_viewport(viewport);
         // Views never clear automatically, so draw an explicit opaque background.
         let world_width = viewport.width / self.minimap_camera.zoom;
@@ -157,7 +179,7 @@ impl Game for CameraGame {
 
 fn main() -> Result<(), Error> {
     let engine = Engine::builder()
-        .title("WASD: move | Space: follow | Scroll: zoom | Tab: split")
+        .title("WASD: move | Space: follow | Scroll: zoom | Tab: split | Click: target")
         .window_size(800, 600)
         .build()?;
 

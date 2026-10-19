@@ -45,8 +45,7 @@ impl Color {
 pub struct Frame {
     pub(crate) background: Color,
     pub(crate) draws: Vec<RecordedDraw>,
-    pub(crate) size: (u32, u32),
-    dpi_scale: f64,
+    size: (f64, f64),
     window_projection: Option<Projection>,
 }
 
@@ -102,13 +101,12 @@ impl Drawable for Rectangle {
 }
 
 impl Frame {
-    pub(crate) fn new(size: (u32, u32), dpi_scale: f64) -> Self {
+    pub(crate) fn new(size: (f64, f64)) -> Self {
         Self {
             background: Color::rgb(0, 0, 0),
             draws: Vec::new(),
             size,
-            dpi_scale,
-            window_projection: Projection::window(size, dpi_scale),
+            window_projection: Projection::window(size),
         }
     }
 
@@ -128,21 +126,13 @@ impl Frame {
     /// Non-finite camera values, zoom <= 0, or zero-sized windows draw nothing.
     /// Use [`View::with_viewport`] to request a smaller or offset area.
     pub fn view(&mut self, camera: &Camera) -> View<'_> {
-        let projection = self
-            .window_projection
-            .and_then(|window| camera.projection(self.size, window.scale));
+        let projection = camera.projection(self.size);
         self.drawing(projection)
     }
 
     /// Current drawable window dimensions in logical pixels.
     pub fn window_size(&self) -> (f64, f64) {
-        if !self.dpi_scale.is_finite() || self.dpi_scale <= 0.0 {
-            return (0.0, 0.0);
-        }
-        (
-            f64::from(self.size.0) / self.dpi_scale,
-            f64::from(self.size.1) / self.dpi_scale,
-        )
+        self.size
     }
 
     fn drawing(&mut self, projection: Option<Projection>) -> View<'_> {
@@ -150,7 +140,6 @@ impl Frame {
             draws: &mut self.draws,
             projection,
             full_window_projection: projection,
-            dpi_scale: self.dpi_scale,
         }
     }
 }
@@ -160,7 +149,6 @@ pub struct View<'a> {
     draws: &'a mut Vec<RecordedDraw>,
     projection: Option<Projection>,
     full_window_projection: Option<Projection>,
-    dpi_scale: f64,
 }
 
 impl View<'_> {
@@ -179,7 +167,7 @@ impl View<'_> {
     pub fn set_viewport(&mut self, viewport: Option<Viewport>) {
         self.projection = self.full_window_projection.and_then(|projection| {
             viewport.map_or(Some(projection), |viewport| {
-                projection.in_viewport(viewport, self.dpi_scale)
+                projection.in_viewport(viewport)
             })
         });
     }

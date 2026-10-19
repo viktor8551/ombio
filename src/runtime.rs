@@ -1,17 +1,14 @@
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     keyboard::PhysicalKey,
-    window::{Window, WindowAttributes, WindowId},
+    window::{WindowAttributes, WindowId},
 };
 
-use crate::{Context, Error, Game, renderer::Renderer};
+use crate::{Context, Error, Game, Graphics};
 
 // Target roughly 60 updates per second
 const UPDATE_INTERVAL: Duration = Duration::from_secs(1).checked_div(60).unwrap();
@@ -24,11 +21,9 @@ pub(crate) fn run(
     let mut application = Application {
         proxy: event_loop.create_proxy(),
         window_attributes,
-        window: None,
-        renderer: None,
         game,
         error: None,
-        context: Context::new(),
+        context: None,
         occluded: false,
         next_update: None,
     };
@@ -42,11 +37,9 @@ pub(crate) fn run(
 struct Application<G> {
     proxy: EventLoopProxy<()>,
     window_attributes: WindowAttributes,
-    window: Option<Arc<Window>>,
-    renderer: Option<Renderer>,
     game: G,
     error: Option<Error>,
-    context: Context,
+    context: Option<Context>,
     occluded: bool,
     next_update: Option<Instant>,
 }
@@ -55,7 +48,8 @@ impl<G: Game> Application<G> {
     fn can_render(&self) -> bool {
         !self.occluded
             && self.error.is_none()
-            && self.window.as_ref().is_some_and(|window| {
+            && self.context.as_ref().is_some_and(|context| {
+                let window = &context.graphics().window;
                 let size = window.inner_size();
                 window.is_visible() != Some(false)
                     && window.is_minimized() != Some(true)
@@ -66,22 +60,22 @@ impl<G: Game> Application<G> {
 
     fn schedule_redraw(&mut self) {
         if self.can_render()
-            && let Some(window) = &self.window
+            && let Some(context) = &self.context
         {
-            window.request_redraw();
+            context.graphics().window.request_redraw();
         }
     }
 
     fn update_if_due(&mut self, now: Instant) -> bool {
-        if self.error.is_some()
-            || self.window.is_none()
-            || self.next_update.is_some_and(|deadline| now < deadline)
-        {
+        if self.error.is_some() || self.next_update.is_some_and(|deadline| now < deadline) {
             return false;
         }
-        self.context.advance(now);
-        self.game.update(&self.context);
-        self.context.input_mut().finish_update();
+        let Some(context) = &mut self.context else {
+            return false;
+        };
+        context.advance(now);
+        self.game.update(context);
+        context.input_mut().finish_update();
         self.next_update = Some(Instant::now() + UPDATE_INTERVAL);
         true
     }
@@ -94,25 +88,18 @@ impl<G: Game> Application<G> {
 
 impl<G: Game> ApplicationHandler for Application<G> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_some() || self.error.is_some() {
+        if self.context.is_some() || self.error.is_some() {
             self.schedule_redraw();
             return;
         }
         match event_loop.create_window(self.window_attributes.clone()) {
-            Ok(window) => {
-                let window = Arc::new(window);
-                self.context
-                    .input_mut()
-                    .set_scale_factor(window.scale_factor());
-                match pollster::block_on(Renderer::new(window.clone(), self.proxy.clone())) {
-                    Ok(renderer) => {
-                        self.renderer = Some(renderer);
-                        window.request_redraw();
-                        self.window = Some(window);
-                    }
-                    Err(error) => self.fail(event_loop, error),
+            Ok(window) => match pollster::block_on(Graphics::new(window, self.proxy.clone())) {
+                Ok(graphics) => {
+                    self.context = Some(Context::new(graphics));
+                    self.schedule_redraw();
                 }
-            }
+                Err(error) => self.fail(event_loop, error),
+            },
             Err(error) => self.fail(event_loop, Error::WindowCreation(error)),
         }
     }
@@ -131,8 +118,8 @@ impl<G: Game> ApplicationHandler for Application<G> {
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, _event: ()) {
-        if let Some(renderer) = &self.renderer
-            && let Err(error) = renderer.check_error()
+        if let Some(context) = &self.context
+            && let Err(error) = context.graphics().renderer.check_error()
         {
             self.fail(event_loop, error);
         }
@@ -144,28 +131,34 @@ impl<G: Game> ApplicationHandler for Application<G> {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if self.error.is_some() || self.window.as_ref().map(|window| window.id()) != Some(window_id)
-        {
+        if self.error.is_some() {
             return;
         }
-        self.context.input_mut().handle_mouse_event(&event);
+        let Some(context) = &mut self.context else {
+            return;
+        };
+        if context.graphics().window.id() != window_id {
+            return;
+        }
+        context.input_mut().handle_mouse_event(&event);
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput { event, .. } => {
                 if let PhysicalKey::Code(key) = event.physical_key {
-                    self.context.input_mut().handle_key(key, event.state);
+                    context.input_mut().handle_key(key, event.state);
                 }
             }
-            WindowEvent::Focused(false) => self.context.input_mut().release_all(),
+            WindowEvent::Focused(false) => context.input_mut().release_all(),
             WindowEvent::RedrawRequested => {
                 if !self.can_render() {
                     return;
                 }
                 self.update_if_due(Instant::now());
-                if let (Some(window), Some(renderer)) = (&self.window, &mut self.renderer)
-                    && let Err(error) = renderer.render(window, &mut self.game)
-                {
-                    self.fail(event_loop, error);
+                if let Some(context) = &mut self.context {
+                    let graphics = context.graphics_mut();
+                    if let Err(error) = graphics.renderer.render(&graphics.window, &mut self.game) {
+                        self.fail(event_loop, error);
+                    }
                 }
             }
             WindowEvent::Occluded(occluded) => {
@@ -181,12 +174,11 @@ impl<G: Game> ApplicationHandler for Application<G> {
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         if self.error.is_none()
-            && let Some(renderer) = &self.renderer
-            && let Err(error) = renderer.check_error()
+            && let Some(context) = &self.context
+            && let Err(error) = context.graphics().renderer.check_error()
         {
             self.error = Some(error);
         }
-        self.renderer = None;
-        self.window = None;
+        self.context = None;
     }
 }
