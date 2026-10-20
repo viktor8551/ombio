@@ -11,7 +11,7 @@ pub struct Context {
 impl Context {
     pub(crate) fn new(graphics: Graphics) -> Self {
         let mut input = Input::new();
-        input.set_scale_factor(graphics.window.scale_factor());
+        input.set_scale_factor(graphics.scale_factor());
         Self {
             time: Time::new(),
             input,
@@ -40,8 +40,7 @@ impl Context {
     }
 
     pub(crate) fn advance(&mut self, now: Instant) {
-        self.input
-            .set_scale_factor(self.graphics.window.scale_factor());
+        self.input.set_scale_factor(self.graphics.scale_factor());
         self.time.advance(now);
     }
 }

@@ -24,7 +24,6 @@ pub(crate) fn run(
         game,
         error: None,
         context: None,
-        occluded: false,
         next_update: None,
     };
     let result = event_loop.run_app(&mut application);
@@ -40,29 +39,15 @@ struct Application<G> {
     game: G,
     error: Option<Error>,
     context: Option<Context>,
-    occluded: bool,
     next_update: Option<Instant>,
 }
 
 impl<G: Game> Application<G> {
-    fn can_render(&self) -> bool {
-        !self.occluded
-            && self.error.is_none()
-            && self.context.as_ref().is_some_and(|context| {
-                let window = &context.graphics().window;
-                let size = window.inner_size();
-                window.is_visible() != Some(false)
-                    && window.is_minimized() != Some(true)
-                    && size.width > 0
-                    && size.height > 0
-            })
-    }
-
     fn schedule_redraw(&mut self) {
-        if self.can_render()
+        if self.error.is_none()
             && let Some(context) = &self.context
         {
-            context.graphics().window.request_redraw();
+            context.graphics().request_redraw();
         }
     }
 
@@ -119,7 +104,7 @@ impl<G: Game> ApplicationHandler for Application<G> {
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, _event: ()) {
         if let Some(context) = &self.context
-            && let Err(error) = context.graphics().renderer.check_error()
+            && let Err(error) = context.graphics().check_error()
         {
             self.fail(event_loop, error);
         }
@@ -137,7 +122,7 @@ impl<G: Game> ApplicationHandler for Application<G> {
         let Some(context) = &mut self.context else {
             return;
         };
-        if context.graphics().window.id() != window_id {
+        if context.graphics().window_id() != window_id {
             return;
         }
         context.input_mut().handle_mouse_event(&event);
@@ -150,19 +135,18 @@ impl<G: Game> ApplicationHandler for Application<G> {
             }
             WindowEvent::Focused(false) => context.input_mut().release_all(),
             WindowEvent::RedrawRequested => {
-                if !self.can_render() {
+                if !context.graphics().can_render() {
                     return;
                 }
                 self.update_if_due(Instant::now());
-                if let Some(context) = &mut self.context {
-                    let graphics = context.graphics_mut();
-                    if let Err(error) = graphics.renderer.render(&graphics.window, &mut self.game) {
-                        self.fail(event_loop, error);
-                    }
+                if let Some(context) = &mut self.context
+                    && let Err(error) = context.graphics_mut().render(&mut self.game)
+                {
+                    self.fail(event_loop, error);
                 }
             }
             WindowEvent::Occluded(occluded) => {
-                self.occluded = occluded;
+                context.graphics_mut().set_occluded(occluded);
                 self.schedule_redraw();
             }
             WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
@@ -175,7 +159,7 @@ impl<G: Game> ApplicationHandler for Application<G> {
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         if self.error.is_none()
             && let Some(context) = &self.context
-            && let Err(error) = context.graphics().renderer.check_error()
+            && let Err(error) = context.graphics().check_error()
         {
             self.error = Some(error);
         }
