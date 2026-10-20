@@ -1,9 +1,23 @@
-use ombio::{Color, Engine, Frame, Game, Image, Rectangle, Sprite};
+use ombio::{Color, Context, Engine, Error, Frame, Game, Image, Rectangle, Sprite};
 
 struct SpriteGame {
     first: Sprite,
     second: Sprite,
     clipped: Sprite,
+}
+
+impl SpriteGame {
+    fn new(_ctx: &Context) -> Result<Self, Error> {
+        let image = Image::load(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/assets/sprite.png"
+        ))?;
+        Ok(Self {
+            first: Sprite::new(image.clone(), 56.0, 56.0),
+            second: Sprite::new(image.clone(), 168.0, 56.0),
+            clipped: Sprite::new(image, -24.0, 176.0),
+        })
+    }
 }
 
 impl Game for SpriteGame {
@@ -29,18 +43,10 @@ impl Game for SpriteGame {
     }
 }
 
-fn main() -> Result<(), ombio::Error> {
-    let image = Image::load(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/examples/assets/sprite.png"
-    ))?;
+fn main() -> Result<(), Error> {
     Engine::builder()
         .title("OMBIO PNG sprites")
         .window_size(320, 208)
         .build()?
-        .run(SpriteGame {
-            first: Sprite::new(image.clone(), 56.0, 56.0),
-            second: Sprite::new(image.clone(), 168.0, 56.0),
-            clipped: Sprite::new(image, -24.0, 176.0),
-        })
+        .run(SpriteGame::new)
 }

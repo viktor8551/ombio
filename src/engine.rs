@@ -4,7 +4,7 @@ use winit::{
     window::{Window, WindowAttributes},
 };
 
-use crate::{Error, Game, runtime};
+use crate::{Context, Error, Game, runtime};
 
 /// Configures an engine, defaulting to OMBIO and an 800 by 600 logical pixel content area.
 pub struct EngineBuilder {
@@ -57,9 +57,15 @@ impl Engine {
         }
     }
 
-    /// Takes ownership of the game, opens one window and renders on redraw requests.
+    /// Opens one window and constructs the game with its ready Context.
+    ///
+    /// Calls the constructor once, before any updates or rendering. Constructor
+    /// errors are returned without starting the game.
     /// Window and event-loop resources are released before returning.
-    pub fn run(self, game: impl Game) -> Result<(), Error> {
-        runtime::run(self.event_loop, self.window_attributes, game)
+    pub fn run<G: Game>(
+        self,
+        create_game: impl FnOnce(&Context) -> Result<G, Error>,
+    ) -> Result<(), Error> {
+        runtime::run(self.event_loop, self.window_attributes, create_game)
     }
 }

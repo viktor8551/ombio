@@ -13,15 +13,16 @@ use crate::{Context, Error, Game, Graphics};
 // Target roughly 60 updates per second
 const UPDATE_INTERVAL: Duration = Duration::from_secs(1).checked_div(60).unwrap();
 
-pub(crate) fn run(
+pub(crate) fn run<G: Game>(
     event_loop: EventLoop<()>,
     window_attributes: WindowAttributes,
-    game: impl Game,
+    create_game: impl FnOnce(&Context) -> Result<G, Error>,
 ) -> Result<(), Error> {
     let mut application = Application {
         proxy: event_loop.create_proxy(),
         window_attributes,
-        game,
+        create_game: Some(create_game),
+        game: None,
         error: None,
         context: None,
         next_update: None,
@@ -33,16 +34,17 @@ pub(crate) fn run(
     }
 }
 
-struct Application<G> {
+struct Application<G, F> {
     proxy: EventLoopProxy<()>,
     window_attributes: WindowAttributes,
-    game: G,
+    create_game: Option<F>,
+    game: Option<G>,
     error: Option<Error>,
     context: Option<Context>,
     next_update: Option<Instant>,
 }
 
-impl<G: Game> Application<G> {
+impl<G: Game, F> Application<G, F> {
     fn schedule_redraw(&mut self) {
         if self.error.is_none()
             && let Some(context) = &self.context
@@ -58,8 +60,11 @@ impl<G: Game> Application<G> {
         let Some(context) = &mut self.context else {
             return false;
         };
+        let Some(game) = &mut self.game else {
+            return false;
+        };
         context.advance(now);
-        self.game.update(context);
+        game.update(context);
         context.input_mut().finish_update();
         self.next_update = Some(Instant::now() + UPDATE_INTERVAL);
         true
@@ -71,8 +76,11 @@ impl<G: Game> Application<G> {
     }
 }
 
-impl<G: Game> ApplicationHandler for Application<G> {
+impl<G: Game, F: FnOnce(&Context) -> Result<G, Error>> ApplicationHandler for Application<G, F> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if event_loop.exiting() {
+            return;
+        }
         if self.context.is_some() || self.error.is_some() {
             self.schedule_redraw();
             return;
@@ -80,8 +88,19 @@ impl<G: Game> ApplicationHandler for Application<G> {
         match event_loop.create_window(self.window_attributes.clone()) {
             Ok(window) => match pollster::block_on(Graphics::new(window, self.proxy.clone())) {
                 Ok(graphics) => {
-                    self.context = Some(Context::new(graphics));
-                    self.schedule_redraw();
+                    let context = Context::new(graphics);
+                    let create_game = self
+                        .create_game
+                        .take()
+                        .expect("game is constructed only once");
+                    match create_game(&context) {
+                        Ok(game) => {
+                            self.game = Some(game);
+                            self.context = Some(context);
+                            self.schedule_redraw();
+                        }
+                        Err(error) => self.fail(event_loop, error),
+                    }
                 }
                 Err(error) => self.fail(event_loop, error),
             },
@@ -140,7 +159,8 @@ impl<G: Game> ApplicationHandler for Application<G> {
                 }
                 self.update_if_due(Instant::now());
                 if let Some(context) = &mut self.context
-                    && let Err(error) = context.graphics_mut().render(&mut self.game)
+                    && let Some(game) = &mut self.game
+                    && let Err(error) = context.graphics_mut().render(game)
                 {
                     self.fail(event_loop, error);
                 }
@@ -163,6 +183,7 @@ impl<G: Game> ApplicationHandler for Application<G> {
         {
             self.error = Some(error);
         }
+        self.game = None;
         self.context = None;
     }
 }

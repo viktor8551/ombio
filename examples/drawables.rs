@@ -1,4 +1,4 @@
-use ombio::{Color, Drawable, Engine, Error, Frame, Game, Image, Rectangle, Sprite, View};
+use ombio::{Color, Context, Drawable, Engine, Error, Frame, Game, Image, Rectangle, Sprite, View};
 
 struct Panel {
     background: Rectangle,
@@ -14,6 +14,21 @@ impl Drawable for Panel {
 
 struct DrawableGame {
     panel: Panel,
+}
+
+impl DrawableGame {
+    fn new(_ctx: &Context) -> Result<Self, Error> {
+        let image = Image::load(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/assets/sprite.png"
+        ))?;
+        Ok(Self {
+            panel: Panel {
+                background: Rectangle::new(40.0, 40.0, 240.0, 128.0, Color::rgb(192, 64, 96)),
+                foreground: Sprite::new(image, 56.0, 56.0),
+            },
+        })
+    }
 }
 
 impl Game for DrawableGame {
@@ -32,18 +47,9 @@ impl Game for DrawableGame {
 }
 
 fn main() -> Result<(), Error> {
-    let image = Image::load(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/examples/assets/sprite.png"
-    ))?;
     Engine::builder()
         .title("OMBIO composed drawables")
         .window_size(320, 208)
         .build()?
-        .run(DrawableGame {
-            panel: Panel {
-                background: Rectangle::new(40.0, 40.0, 240.0, 128.0, Color::rgb(192, 64, 96)),
-                foreground: Sprite::new(image, 56.0, 56.0),
-            },
-        })
+        .run(DrawableGame::new)
 }

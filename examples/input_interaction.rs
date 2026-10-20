@@ -9,6 +9,16 @@ struct InputInteraction {
     highlighted: bool,
 }
 
+impl InputInteraction {
+    fn new(_ctx: &Context) -> Result<Self, Error> {
+        Ok(Self {
+            x: 160.0,
+            y: 112.0,
+            highlighted: false,
+        })
+    }
+}
+
 impl Game for InputInteraction {
     fn update(&mut self, context: &Context) {
         let keyboard = context.input().keyboard();
@@ -67,9 +77,5 @@ fn main() -> Result<(), Error> {
         )
         .window_size(352, 256)
         .build()?
-        .run(InputInteraction {
-            x: 160.0,
-            y: 112.0,
-            highlighted: false,
-        })
+        .run(InputInteraction::new)
 }

@@ -4,6 +4,12 @@ struct MovingRectangle {
     phase: f64,
 }
 
+impl MovingRectangle {
+    fn new(_ctx: &Context) -> Result<Self, Error> {
+        Ok(Self { phase: 0.0 })
+    }
+}
+
 impl Game for MovingRectangle {
     fn update(&mut self, context: &Context) {
         // Move at 120 logical pixels per second, bouncing between the edges.
@@ -28,5 +34,5 @@ fn main() -> Result<(), Error> {
         .title("OMBIO moving rectangle")
         .window_size(352, 176)
         .build()?
-        .run(MovingRectangle { phase: 0.0 })
+        .run(MovingRectangle::new)
 }

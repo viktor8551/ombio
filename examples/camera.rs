@@ -43,7 +43,7 @@ struct CameraGame {
 }
 
 impl CameraGame {
-    fn new() -> Result<Self, Error> {
+    fn new(_context: &Context) -> Result<Self, Error> {
         let image = Image::load(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/examples/assets/sprite.png"
@@ -183,5 +183,5 @@ fn main() -> Result<(), Error> {
         .window_size(800, 600)
         .build()?;
 
-    engine.run(CameraGame::new()?)
+    engine.run(CameraGame::new)
 }
