@@ -44,7 +44,7 @@ struct CameraGame {
 
 impl CameraGame {
     fn new(ctx: &Context) -> Result<Self, Error> {
-        let image = Image::load(ctx, "examples/assets/sprite.png")?;
+        let image = Image::load(ctx, "sprite.png")?;
 
         Ok(Self {
             camera: Camera::default(),
@@ -176,6 +176,7 @@ impl Game for CameraGame {
 
 fn main() -> Result<(), Error> {
     let engine = Engine::builder()
+        .asset_directory("examples/assets")
         .title("WASD: move | Space: follow | Scroll: zoom | Tab: split | Click: target")
         .window_size(800, 600)
         .build()?;

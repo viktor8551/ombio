@@ -8,7 +8,7 @@ struct SpriteGame {
 
 impl SpriteGame {
     fn new(ctx: &Context) -> Result<Self, Error> {
-        let image = Image::load(ctx, "examples/assets/sprite.png")?;
+        let image = Image::load(ctx, "sprite.png")?;
         Ok(Self {
             first: Sprite::new(image.clone(), 56.0, 56.0),
             second: Sprite::new(image.clone(), 168.0, 56.0),
@@ -42,6 +42,7 @@ impl Game for SpriteGame {
 
 fn main() -> Result<(), Error> {
     Engine::builder()
+        .asset_directory("examples/assets")
         .title("OMBIO PNG sprites")
         .window_size(320, 208)
         .build()?

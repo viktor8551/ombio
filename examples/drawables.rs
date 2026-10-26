@@ -18,7 +18,7 @@ struct DrawableGame {
 
 impl DrawableGame {
     fn new(ctx: &Context) -> Result<Self, Error> {
-        let image = Image::load(ctx, "examples/assets/sprite.png")?;
+        let image = Image::load(ctx, "sprite.png")?;
         Ok(Self {
             panel: Panel {
                 background: Rectangle::new(40.0, 40.0, 240.0, 128.0, Color::rgb(192, 64, 96)),
@@ -45,6 +45,7 @@ impl Game for DrawableGame {
 
 fn main() -> Result<(), Error> {
     Engine::builder()
+        .asset_directory("examples/assets")
         .title("OMBIO composed drawables")
         .window_size(320, 208)
         .build()?
