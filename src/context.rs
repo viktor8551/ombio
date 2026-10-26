@@ -1,21 +1,23 @@
 use std::time::Instant;
 
-use crate::{Graphics, Time, input::Input};
+use crate::{Filesystem, Graphics, Time, input::Input};
 
 pub struct Context {
     time: Time,
     input: Input,
     graphics: Graphics,
+    filesystem: Filesystem,
 }
 
 impl Context {
-    pub(crate) fn new(graphics: Graphics) -> Self {
+    pub(crate) fn new(graphics: Graphics, filesystem: Filesystem) -> Self {
         let mut input = Input::new();
         input.set_scale_factor(graphics.scale_factor());
         Self {
             time: Time::new(),
             input,
             graphics,
+            filesystem,
         }
     }
 
@@ -29,6 +31,10 @@ impl Context {
 
     pub fn graphics(&self) -> &Graphics {
         &self.graphics
+    }
+
+    pub fn filesystem(&self) -> &Filesystem {
+        &self.filesystem
     }
 
     pub(crate) fn graphics_mut(&mut self) -> &mut Graphics {

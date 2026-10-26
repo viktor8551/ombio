@@ -8,7 +8,7 @@ use winit::{
     window::{WindowAttributes, WindowId},
 };
 
-use crate::{Context, Error, Game, Graphics};
+use crate::{Context, Error, Filesystem, Game, Graphics};
 
 // Target roughly 60 updates per second
 const UPDATE_INTERVAL: Duration = Duration::from_secs(1).checked_div(60).unwrap();
@@ -16,11 +16,13 @@ const UPDATE_INTERVAL: Duration = Duration::from_secs(1).checked_div(60).unwrap(
 pub(crate) fn run<G: Game>(
     event_loop: EventLoop<()>,
     window_attributes: WindowAttributes,
+    filesystem: Filesystem,
     create_game: impl FnOnce(&Context) -> Result<G, Error>,
 ) -> Result<(), Error> {
     let mut application = Application {
         proxy: event_loop.create_proxy(),
         window_attributes,
+        filesystem: Some(filesystem),
         create_game: Some(create_game),
         game: None,
         error: None,
@@ -37,6 +39,7 @@ pub(crate) fn run<G: Game>(
 struct Application<G, F> {
     proxy: EventLoopProxy<()>,
     window_attributes: WindowAttributes,
+    filesystem: Option<Filesystem>,
     create_game: Option<F>,
     game: Option<G>,
     error: Option<Error>,
@@ -88,7 +91,11 @@ impl<G: Game, F: FnOnce(&Context) -> Result<G, Error>> ApplicationHandler for Ap
         match event_loop.create_window(self.window_attributes.clone()) {
             Ok(window) => match pollster::block_on(Graphics::new(window, self.proxy.clone())) {
                 Ok(graphics) => {
-                    let context = Context::new(graphics);
+                    let filesystem = self
+                        .filesystem
+                        .take()
+                        .expect("context is constructed only once");
+                    let context = Context::new(graphics, filesystem);
                     let create_game = self
                         .create_game
                         .take()

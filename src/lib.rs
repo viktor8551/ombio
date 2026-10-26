@@ -3,6 +3,7 @@
 mod context;
 mod engine;
 mod error;
+mod filesystem;
 mod game;
 mod graphics;
 pub mod input;
@@ -12,6 +13,7 @@ mod time;
 pub use context::Context;
 pub use engine::{Engine, EngineBuilder};
 pub use error::Error;
+pub use filesystem::Filesystem;
 pub use game::Game;
 pub use graphics::{
     Camera, Color, Drawable, Frame, Graphics, Image, Rectangle, Sprite, View, Viewport,

@@ -1,10 +1,12 @@
-use std::fmt;
+use std::{fmt, io, path::PathBuf};
 
 use winit::error::{EventLoopError, OsError};
 
-/// A failure while loading an image, preparing, or running the engine.
+/// A failure while loading assets, preparing, or running the engine.
 #[derive(Debug)]
 pub enum Error {
+    AssetDirectory(PathBuf, io::Error),
+    AssetOpen(PathBuf, io::Error),
     SpriteLoading(image::ImageError),
     Preparation(EventLoopError),
     WindowCreation(OsError),
@@ -19,6 +21,16 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::AssetDirectory(path, error) => write!(
+                formatter,
+                "asset directory resolution failed for '{}': {error}",
+                path.display()
+            ),
+            Self::AssetOpen(path, error) => write!(
+                formatter,
+                "asset opening failed for '{}': {error}",
+                path.display()
+            ),
             Self::SpriteLoading(error) => write!(formatter, "sprite loading failed: {error}"),
             Self::Preparation(error) => write!(formatter, "engine preparation failed: {error}"),
             Self::WindowCreation(error) => write!(formatter, "window creation failed: {error}"),
@@ -39,6 +51,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::AssetDirectory(_, error) | Self::AssetOpen(_, error) => Some(error),
             Self::SpriteLoading(error) => Some(error),
             Self::Preparation(error) | Self::Runtime(error) => Some(error),
             Self::WindowCreation(error) => Some(error),
