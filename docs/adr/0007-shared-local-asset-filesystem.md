@@ -1,0 +1,3 @@
+# Shared local asset filesystem
+
+For planned local asset loading, use a filesystem service on Context so image loading, future asset loaders, and application-defined formats share file access while decoding remains in each asset module. Default to `assets` relative to the working directory, allow a relative or absolute directory override through `EngineBuilder::asset_directory(path)`, and resolve it once at `build()` so later working-directory changes do not affect loading. Public `ctx.filesystem().open(path)` will provide read-only access using asset-relative paths that cannot traverse above the directory.
