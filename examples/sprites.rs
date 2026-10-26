@@ -7,11 +7,8 @@ struct SpriteGame {
 }
 
 impl SpriteGame {
-    fn new(_ctx: &Context) -> Result<Self, Error> {
-        let image = Image::load(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/examples/assets/sprite.png"
-        ))?;
+    fn new(ctx: &Context) -> Result<Self, Error> {
+        let image = Image::load(ctx, "examples/assets/sprite.png")?;
         Ok(Self {
             first: Sprite::new(image.clone(), 56.0, 56.0),
             second: Sprite::new(image.clone(), 168.0, 56.0),

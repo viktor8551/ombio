@@ -194,26 +194,31 @@ impl Renderer {
     }
 
     fn image_bind_group(&self, image: &Image) -> Result<wgpu::BindGroup, Error> {
-        let data = &image.data;
-        let mut cached = data
-            .gpu
-            .lock()
-            .map_err(|_| Error::Rendering("sprite GPU cache lock was poisoned".into()))?;
-        if let Some(gpu) = cached.as_ref()
-            && gpu.device == self.device
-        {
-            return Ok(gpu.bind_group.clone());
+        let gpu = &image.data.gpu;
+        if gpu.device != self.device {
+            return Err(Error::Rendering(
+                "image belongs to a different graphics context".into(),
+            ));
         }
+        Ok(gpu.bind_group.clone())
+    }
+
+    pub(crate) fn upload_image(
+        &self,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+    ) -> Result<GpuImage, Error> {
+        self.check_error()?;
         let limit = self.device.limits().max_texture_dimension_2d;
-        if data.width > limit || data.height > limit {
+        if width > limit || height > limit {
             return Err(Error::Rendering(format!(
-                "sprite dimensions {}x{} exceed the GPU texture limit {limit}",
-                data.width, data.height,
+                "image dimensions {width}x{height} exceed the GPU texture limit {limit}",
             )));
         }
         let size = wgpu::Extent3d {
-            width: data.width,
-            height: data.height,
+            width,
+            height,
             depth_or_array_layers: 1,
         };
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -228,11 +233,11 @@ impl Renderer {
         });
         self.queue.write_texture(
             texture.as_image_copy(),
-            &data.pixels,
+            pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(data.width * 4),
-                rows_per_image: Some(data.height),
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
             },
             size,
         );
@@ -252,11 +257,10 @@ impl Renderer {
             ],
         });
         self.check_error()?;
-        *cached = Some(GpuImage {
+        Ok(GpuImage {
             device: self.device.clone(),
-            bind_group: bind_group.clone(),
-        });
-        Ok(bind_group)
+            bind_group,
+        })
     }
 
     pub(crate) fn render(&mut self, window: &Window, game: &mut impl Game) -> Result<(), Error> {

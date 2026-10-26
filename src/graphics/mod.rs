@@ -20,7 +20,7 @@ use winit::{
 
 use crate::{Error, Game};
 
-use self::renderer::Renderer;
+use self::renderer::{GpuImage, Renderer};
 
 pub struct Graphics {
     renderer: Renderer,
@@ -42,6 +42,15 @@ impl Graphics {
     /// Current window dimensions in logical pixels.
     pub fn window_size(&self) -> (f64, f64) {
         logical_size(self.window.inner_size(), self.window.scale_factor())
+    }
+
+    pub(crate) fn upload_image(
+        &self,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+    ) -> Result<GpuImage, Error> {
+        self.renderer.upload_image(width, height, pixels)
     }
 
     pub(crate) fn window_id(&self) -> WindowId {

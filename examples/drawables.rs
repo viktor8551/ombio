@@ -17,11 +17,8 @@ struct DrawableGame {
 }
 
 impl DrawableGame {
-    fn new(_ctx: &Context) -> Result<Self, Error> {
-        let image = Image::load(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/examples/assets/sprite.png"
-        ))?;
+    fn new(ctx: &Context) -> Result<Self, Error> {
+        let image = Image::load(ctx, "examples/assets/sprite.png")?;
         Ok(Self {
             panel: Panel {
                 background: Rectangle::new(40.0, 40.0, 240.0, 128.0, Color::rgb(192, 64, 96)),
